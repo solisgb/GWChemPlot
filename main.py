@@ -29,6 +29,9 @@ if __name__ == "__main__":
         
         gwch = GWChemPlot(df)
         
+        gwch.meqL_ratio()
+        raise SystemExit(0)
+        
         resp = input("Run charge balance check (y/n) ?: ")
         if resp.lower() in ('y', 'yes', '1'):
             fo = './out/cbe_data_template.csv'

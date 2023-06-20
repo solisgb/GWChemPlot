@@ -15,16 +15,17 @@ import traceback
 from ions import Ions
 import littleLogging as logging
 
-class Gw_graphs():
+
+class GWChemPlot():
 
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
         """
-        Hydrochemical groundwater diagrams: Schoeller, Stiff, Piper
+        Groundwater chemical diagrams: Schoeller, Stiff, Piper
         
         Parameters
         ----------
-        df : Hydrochemical data to draw supported diagrams.
+        df : Hydrochemical data to draw diagrams.
         unit : The unit used in df (mg/L or meq/L). 
         dpi : dot per inch in graph output files'
         """
@@ -341,6 +342,40 @@ class Gw_graphs():
         else:
             print("Some Stiff plots have not been saved, " +\
                   "exceptions have occurred")
+
+
+    def meqL_ratio(self) -> pd.DataFrame: 
+        """
+        anions and cations normalization
+
+        Returns
+        -------
+        None.
+
+        """
+        col_names = self.required_columns_graph('Piper')
+        meqL = self.meqL_get(col_names).values
+        
+        sumcat = np.sum(meqL[:, 0:4], axis=1)
+        suman = np.sum(meqL[:, 4:8], axis=1)
+        cat = np.zeros((meqL.shape[0], 3))
+        an = np.zeros((meqL.shape[0], 3))
+        cat[:, 0] = meqL[:, 0] / sumcat                  # Ca
+        cat[:, 1] = meqL[:, 1] / sumcat                  # Mg
+        cat[:, 2] = (meqL[:, 2] + meqL[:, 3]) / sumcat   # Na+K
+        an[:, 0] = (meqL[:, 4] + meqL[:, 5]) / suman     # HCO3 + CO3
+        an[:, 2] = meqL[:, 6] / suman                    # Cl
+        an[:, 1] = meqL[:, 7] / suman                    # SO4
+        
+        return cat, an
+
+
+    def facies(self) -> pd.DataFrame:
+        """
+        Facies of groundwater based on the Piper classification
+        """
+        rcat, ran = self.meqL_ratio() 
+        #TODO
 
 
     def plot_Piper(self, figname:str) -> None:
