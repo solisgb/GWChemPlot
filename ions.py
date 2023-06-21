@@ -67,13 +67,13 @@ class Ions():
 
 
     def anions_in_df(self, df: pd.DataFrame) -> [str]:
-        a = [c1 for c1 in df.columns if c1 in self.a_charge]
-        return a
+        cols = [c1 for c1 in df.columns if c1 in self.a_charge]
+        return cols
 
 
     def cations_in_df(self, df: pd.DataFrame) -> [str]:
-        c = [c1 for c1 in df.columns if c1 in self.c_charge]
-        return c
+        cols = [c1 for c1 in df.columns if c1 in self.c_charge]
+        return cols
 
 
     def ions_in_df(self, df: pd.DataFrame) -> [str]:

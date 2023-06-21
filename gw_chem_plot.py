@@ -36,6 +36,8 @@ class GWChemPlot():
         
         self._atr = {'df': df, 'unit': unit, 'dpi': dpi}
 
+        self._ions = Ions()
+
 
     @property
     def df(self):
@@ -130,7 +132,7 @@ class GWChemPlot():
         return cols
 
 
-    def meqL_get(self, ion_names: list[str]=[]) -> pd.DataFrame:
+    def meqL_get(self, ion_names: [str]=[]) -> pd.DataFrame:
         """
         Calculate the meq/L of the ions in ion_names.
 
@@ -138,14 +140,13 @@ class GWChemPlot():
         ----------
         col_names : list of ion's names 
         """
-        ions = Ions()
         if not ion_names:
-            ion_names = Ions.ions_in_df(self.df)
+            ion_names = self._ions.ions_in_df(self.df)
   
         if self.unit == 'meq/L':
             return self.df[ion_names]
         else:
-            x = ions.charge_weight_ratio_get(ion_names)
+            x = self._ions.charge_weight_ratio_get(ion_names)
             return self.df[ion_names].mul(x.iloc[0])
 
 
@@ -154,9 +155,8 @@ class GWChemPlot():
         Get the charge balance error (cbe). The returned DataFrame has
         the columns: 'Sample' and 'cbe'
         """
-        ions = Ions()
-        anions = ions.anions_in_df(self.df)
-        cations = ions.cations_in_df(self.df)
+        anions = self._ions.anions_in_df(self.df)
+        cations = self._ions.cations_in_df(self.df)
         if self.unit == 'mg/L': 
             anions_meqL = self.meqL_get(anions)
             cations_meqL = self.meqL_get(cations)
@@ -344,38 +344,51 @@ class GWChemPlot():
                   "exceptions have occurred")
 
 
-    def meqL_ratio(self) -> pd.DataFrame: 
+    def anions_meqL_normalization(self, col_names: [str]) -> np.array: 
         """
-        anions and cations normalization
-
-        Returns
-        -------
-        None.
-
+        anions (meq/L) normalization
         """
-        col_names = self.required_columns_graph('Piper')
+        meqL = self.meqL_get(col_names).values
+        xsum = np.sum(meqL[:, 4:8], axis=1)
+        xn = np.zeros((meqL.shape[0], 3))
+        xn[:, 0] = (meqL[:, 4] + meqL[:, 5]) / xsum     # HCO3 + CO3
+        xn[:, 2] = meqL[:, 6] / xsum                    # Cl
+        xn[:, 1] = meqL[:, 7] / xsum                    # SO4
+        return xn
+
+
+    def cations_meqL_normalization(self, col_names: [str]) -> np.array: 
+        """
+        cations (meq/L) normalization
+        """
         meqL = self.meqL_get(col_names).values
         
-        sumcat = np.sum(meqL[:, 0:4], axis=1)
-        suman = np.sum(meqL[:, 4:8], axis=1)
-        cat = np.zeros((meqL.shape[0], 3))
-        an = np.zeros((meqL.shape[0], 3))
-        cat[:, 0] = meqL[:, 0] / sumcat                  # Ca
-        cat[:, 1] = meqL[:, 1] / sumcat                  # Mg
-        cat[:, 2] = (meqL[:, 2] + meqL[:, 3]) / sumcat   # Na+K
-        an[:, 0] = (meqL[:, 4] + meqL[:, 5]) / suman     # HCO3 + CO3
-        an[:, 2] = meqL[:, 6] / suman                    # Cl
-        an[:, 1] = meqL[:, 7] / suman                    # SO4
-        
-        return cat, an
+        xsum = np.sum(meqL[:, 0:4], axis=1)
+        xn = np.zeros((meqL.shape[0], 3))
+        xn[:, 0] = meqL[:, 0] / xsum                  # Ca
+        xn[:, 1] = meqL[:, 1] / xsum                  # Mg
+        xn[:, 2] = (meqL[:, 2] + meqL[:, 3]) / xsum   # Na+K
+        return xn
 
 
-    def facies(self) -> pd.DataFrame:
+    def ion_dominant_classification(self) -> pd.DataFrame:
         """
         Facies of groundwater based on the Piper classification
+        Custodio E (1983). Hidrogeoquímica. 
+        In Hidrología subterránea pp 1001-1095. Ed. Omga
         """
-        rcat, ran = self.meqL_ratio() 
-        #TODO
+        pan = [c1 for c1 in ['Cl', 'SO4', 'HCO3'] if c1 in self.df.columns]
+        if len(pan) < 3:
+            raise ValueError ('Required anions are not present')
+        if 'CO3' in self.df.columns:
+            pan.append('CO3')
+        if 'NO3' in self.df.columns:
+            pan.append('NO3')
+        pcat = [c1 for c1 in ['Na', 'K', 'Ca', 'Mg'] if c1 in self.df.columns]
+        if len(pan) < 4:
+            raise ValueError ('Required cations are not present')        
+        an = self.anions_meqL_normalization(pan)
+        ca = self.cations_meqL_normalization(pcat)
 
 
     def plot_Piper(self, figname:str) -> None:
