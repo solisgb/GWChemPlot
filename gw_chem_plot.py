@@ -79,6 +79,14 @@ class GWChemPlot():
             logging.append(msg)
             raise ValueError(msg)
 
+        required_col_names = ['HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg']
+        absent = [c1 for c1 in required_col_names if c1 not in df.columns]
+        if len(absent) > 0:
+            a = ','.join(absent)
+            msg = f'The data file lacks the required columns {a}'
+            logging.append(msg)
+            raise ValueError(msg)
+
 
     def check_columns_are_present(self, cols: list[str]) -> bool:
         """
@@ -344,51 +352,154 @@ class GWChemPlot():
                   "exceptions have occurred")
 
 
-    def anions_meqL_normalization(self, col_names: [str]) -> np.array: 
+    def anions_meqL_normalization(self) -> pd.DataFrame: 
         """
-        anions (meq/L) normalization
+        anions (meq/L) normalization. Used in:
+            Ion dominant classification
+            Piper Plot
         """
-        meqL = self.meqL_get(col_names).values
-        xsum = np.sum(meqL[:, 4:8], axis=1)
-        xn = np.zeros((meqL.shape[0], 3))
-        xn[:, 0] = (meqL[:, 4] + meqL[:, 5]) / xsum     # HCO3 + CO3
-        xn[:, 2] = meqL[:, 6] / xsum                    # Cl
-        xn[:, 1] = meqL[:, 7] / xsum                    # SO4
-        return xn
+        col_names = self._ions.anions_in_df(self.df)
+        meqL = self.meqL_get(col_names)
+        xsum = meqL.sum(axis=1)
+        if 'CO3' not in col_names:
+            xan = pd.DataFrame(meqL.HCO3 / xsum, columns=['HCO3'])
+        else:
+            x = meqL.HCO3 + meqL.CO3 
+            xan = pd.DataFrame(x / xsum, columns=['HCO3_CO3'])
+        if 'NO3' not in col_names:
+            xan['Cl'] = meqL.Cl / xsum
+        else: 
+            x = meqL.Cl + meqL.NO3
+            xan['Cl_NO3'] = x / xsum
+        xan['SO4'] = meqL.SO4 / xsum
+
+        return xan
 
 
-    def cations_meqL_normalization(self, col_names: [str]) -> np.array: 
+    def cations_meqL_normalization(self) -> pd.DataFrame: 
         """
-        cations (meq/L) normalization
+        cations (meq/L) normalization. Used in:
+            Ion dominant classification
+            Piper Plot
         """
-        meqL = self.meqL_get(col_names).values
-        
-        xsum = np.sum(meqL[:, 0:4], axis=1)
-        xn = np.zeros((meqL.shape[0], 3))
-        xn[:, 0] = meqL[:, 0] / xsum                  # Ca
-        xn[:, 1] = meqL[:, 1] / xsum                  # Mg
-        xn[:, 2] = (meqL[:, 2] + meqL[:, 3]) / xsum   # Na+K
-        return xn
+        col_names = self._ions.cations_in_df(self.df)
+        meqL = self.meqL_get(col_names)
+        xsum = meqL.sum(axis=1)
+        x = meqL.Na + meqL.K 
+        xca = pd.DataFrame(x / xsum, columns=['Na_K'])
+        xca['Ca'] = meqL.Ca / xsum
+        xca['Mg'] = meqL.Mg / xsum
+
+        return xca
+
+
+    def _carbonate_col_name(self, col_names: [str]) -> 'str':
+        if 'HCO3_CO3' in col_names:
+            return 'HCO3_CO3'
+        else:
+            return 'HCO3'
+
+
+    def _cloride_col_name(self, col_names: [str]) -> 'str':
+        if 'Cl_NO3' in col_names:
+            return 'Cl_NO3'
+        else:
+            return 'Cl'
+
+
+    def _cloride_label(self, col_names: [str]) -> 'str':
+        if 'Cl_NO3' in col_names:
+            return 'Cloruro nitratada'
+        else:
+            return 'Clorurada'
 
 
     def ion_dominant_classification(self) -> pd.DataFrame:
         """
-        Facies of groundwater based on the Piper classification
+        Groundwater geochemical classification
         Custodio E (1983). Hidrogeoquímica. 
         In Hidrología subterránea pp 1001-1095. Ed. Omga
         """
-        pan = [c1 for c1 in ['Cl', 'SO4', 'HCO3'] if c1 in self.df.columns]
-        if len(pan) < 3:
-            raise ValueError ('Required anions are not present')
-        if 'CO3' in self.df.columns:
-            pan.append('CO3')
-        if 'NO3' in self.df.columns:
-            pan.append('NO3')
-        pcat = [c1 for c1 in ['Na', 'K', 'Ca', 'Mg'] if c1 in self.df.columns]
-        if len(pan) < 4:
-            raise ValueError ('Required cations are not present')        
-        an = self.anions_meqL_normalization(pan)
-        ca = self.cations_meqL_normalization(pcat)
+
+        an = self.anions_meqL_normalization()
+        ca = self.cations_meqL_normalization()
+
+        samples = self.df[['Sample']].copy()
+        
+        idc = pd.concat([samples, an, ca], axis=1)
+        col_names = idc.columns
+        carbonate_col_name = self._carbonate_col_name(col_names)
+        cloride_col_name = self._cloride_col_name(col_names)
+        cloride_label = self._cloride_label(col_names)
+        
+        idc_cations = []
+        idc_anions = []
+        for i, r in idc.iterrows():        
+            if r.Na_K > r.Mg > r.Ca:
+                if r.Na_K >= 0.5:
+                    idc_cations.append('Sódica (magnésico-cálcica)')
+                else:
+                    idc_cations.append('Mixta (sódica-magnésico-cálcica)')
+            elif r.Na_K > r.Ca > r.Mg:
+                if r.Na >= 0.5:
+                    idc_cations.append('Sódica (magnésico-cálcica)')
+                else:
+                    idc_cations.append('Mixta (sódica-cálcica-magnésica)')
+            elif r.Mg > r.Na_K > r.Ca:
+                if r.Mg >= 0.5:
+                    idc_cations.append('Magnésica (sódico-cálcica)')
+                else:
+                    idc_cations.append('Mixta (magnésico-sódico-cálcica)')               
+            elif r.Mg > r.Ca > r.Na_K:
+                if r.Mg >= 0.5:
+                    idc_cations.append('Magnésica (cálcico-sódica)')
+                else:
+                    idc_cations.append('Mixta (magnésico-cálcico-sódica)')                
+            elif r.Ca > r.Na_K > r.Mg:
+                if r.Ca >= 0.5:
+                    idc_cations.append('Cálcica (sódico-magnésica)')
+                else:
+                    idc_cations.append('Mixta (cálcico-sódico-magnésica)')                
+            elif r.Ca > r.Mg > r.Na_K:
+                if r.Ca >= 0.5:
+                    idc_cations.append('Cálcica (magnésico-sódica)')
+                else:
+                    idc_cations.append('Mixta (cálcico-magnésico-sódica)')                
+
+            if r[cloride_col_name] > r['SO4'] > r[carbonate_col_name]:
+                if r[cloride_col_name] >= 0.5:
+                    idc_anions.append(f'{cloride_label} (sulfatada-bicarbonatada)')
+                else:
+                    idc_anions.append('Mixta ({cloride_label.lower()}-sulfatada-bicarbonatada)')               
+            elif r[cloride_col_name] > r[carbonate_col_name] > r['SO4']:
+                if r[cloride_col_name] >= 0.5:
+                    idc_anions.append(f'{cloride_label} (bicarbonatada-sulfatada)')
+                else:
+                    idc_anions.append('Mixta ({cloride_label.lower()}-bicarbonatada-sulfatada)')               
+            elif r['SO4'] > r[cloride_col_name] > r[carbonate_col_name] :
+                if r['SO4'] >= 0.5:
+                    idc_anions.append(f'Sulfatada ({cloride_label.lower()}-bicarbonatada)')
+                else:
+                    idc_anions.append('Mixta (sulfatada-{cloride_label.lower()}-bicarbonatada)')               
+            elif r['SO4'] > r[carbonate_col_name] > r[cloride_col_name]:
+                if r['SO4'] >= 0.5:
+                    idc_anions.append(f'Sulfatada (bicarbonatada-{cloride_label.lower()})')
+                else:
+                    idc_anions.append('Mixta (sulfatada-bicarbonatada-{cloride_label.lower()})')
+            elif r[carbonate_col_name] > r[cloride_col_name] > r['SO4']:
+                if r[carbonate_col_name] >= 0.5:
+                    idc_anions.append(f'Bicarbonatada ({cloride_label.lower()}-sulfatada)')
+                else:
+                    idc_anions.append('Mixta (bicarbonatada-{cloride_label.lower()}-sulfatada)')            
+            elif r[carbonate_col_name] > r['SO4'] > r[cloride_col_name]:
+                if r[carbonate_col_name] >= 0.5:
+                    idc_anions.append(f'Bicarbonatada (sulfatada-{cloride_label.lower()})')
+                else:
+                    idc_anions.append('Mixta (bicarbonatada-(sulfatada-{cloride_label.lower()})')            
+
+        idc['cations_classified'] = idc_cations
+        idc['anions_classified'] = idc_anions
+        return idc
 
 
     def plot_Piper(self, figname:str) -> None:

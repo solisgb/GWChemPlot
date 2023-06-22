@@ -29,17 +29,19 @@ if __name__ == "__main__":
         
         gwch = GWChemPlot(df)
         
-        gwch.meqL_ratio()
-        raise SystemExit(0)
-        
-        resp = input("Run charge balance check (y/n) ?: ")
+        resp = input("Check charge balance data (y/n) ?: ")
         if resp.lower() in ('y', 'yes', '1'):
-            fo = './out/cbe_data_template.csv'
+            fo = './out/cbe_data_template.xlsx'
             df = gwch.cbe()
-            df.to_csv(fo, index=False)
+            df.to_csv(fo, index=False, float_format='%.3f')
             resp = input("Charge balance error saved, continue (y/n) ?: ")
             if resp.lower() not in ('y', 'yes', '1'):
                 raise SystemExit(0)
+
+        fo = './out/facies_data_template.xlsx'
+        df = gwch.ion_dominant_classification()
+        df.to_excel(fo, index=False, float_format='%.3f')
+        raise SystemExit(0)
 
         fig_Piper = './out/piper_data_template.png'
         fig_Schoeller = './out/schoeller_data_template.png'
