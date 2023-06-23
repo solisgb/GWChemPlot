@@ -16,6 +16,21 @@ from ions import Ions
 import littleLogging as logging
 
 
+def plot_col_names():
+    info = \
+        {'Sample':'Identificador del análisis',
+         'Label':'Identificador del análisis en el diagrama (gráfico)',
+         'Color': 'Color de Label',
+         'Marker': 'Marcador (símbolo) de Label',
+         'Size': 'Tamaño en dpi del marcador',
+         'Alpha': 'Transparencia del marcador (superposiciones en el gráfico)'}
+    
+    print('Parámetros configurables de los gráficos')
+    for key, value in info.items():
+        print(key, ':', value)
+    print()
+
+
 class GWChemPlot():
 
     
@@ -32,9 +47,11 @@ class GWChemPlot():
         if unit not in ['mg/L', 'meq/L']:
            raise ValueError('units must be mg/L or meq/L')
 
+        df.dropna(inplace=True)
+
         self.check_column_names(df)
         
-        self._atr = {'df': df, 'unit': unit, 'dpi': dpi}
+        self._atr = {'df': df.copy(), 'unit': unit, 'dpi': dpi}
 
         self._ions = Ions()
 
@@ -49,6 +66,13 @@ class GWChemPlot():
         return self.df
 
 
+    @df.setter
+    def df(self, new_df: pd.DataFrame) -> None:
+        self.check_column_names(new_df)
+        new_df.dropna(inplace=True)
+        self._atr['df'] = new_df.copy()
+
+
     @property
     def unit(self):
         return self._atr['unit']
@@ -57,6 +81,8 @@ class GWChemPlot():
     @property
     def dpi(self):
         return self._atr['dpi']
+
+
 
 
     def check_column_names(self, df: pd.DataFrame) -> None:
@@ -400,11 +426,25 @@ class GWChemPlot():
             return 'HCO3'
 
 
+    def _carbonate_piper_axis(self, col_names: [str]) -> 'str':
+        if 'HCO3_CO3' in col_names:
+            return '%' + '$HCO_3^-$' + '+%' + '$CO_3^{2-}$'
+        else:
+            return '%' + '$HCO_3^-$'       
+
+
     def _cloride_col_name(self, col_names: [str]) -> 'str':
         if 'Cl_NO3' in col_names:
             return 'Cl_NO3'
         else:
             return 'Cl'
+
+
+    def _cloride_piper_axis(self, col_names: [str]) -> 'str':
+        if 'Cl_NO3' in col_names:
+            return '%' + '$Cl^{-}$' + '%' + '$NO_3^{-}$'
+        else:
+            return '%' + '$Cl^{-}$'
 
 
     def _cloride_label(self, col_names: [str]) -> 'str':
@@ -792,4 +832,311 @@ class GWChemPlot():
         print("Piper plot created")    
         
         return
+
+
+    def plot_Piper2(self, figname:str) -> None:
+        """
+        Builds a file with the Piper chart, considering NO3 if present
+
+        Parameters
+        ----------
+        figname : Name and extension of the output file (path included)
+        """
+        # data
+        an = self.anions_meqL_normalization()
+        cat = self.cations_meqL_normalization()
+        an_col_names = an.columns
+            
+        # Global plot settings
+        # --------------------------------------------------------------------
+        # Change default settings for figures
+        plt.style.use('default')
+        plt.rcParams['font.size'] = 10
+        plt.rcParams['axes.labelsize'] = 10
+        plt.rcParams['axes.labelweight'] = 'bold'
+        plt.rcParams['axes.titlesize'] = 10
+        plt.rcParams['xtick.labelsize'] = 10
+        plt.rcParams['ytick.labelsize'] = 10
+        plt.rcParams['legend.fontsize'] = 10
+        plt.rcParams['figure.titlesize'] = 10   
+        
+        # Plot background settings
+        # --------------------------------------------------------------------
+        # Define the offset between the diamond and triangle
+        offset = 0.10                         
+        # offsety = offset * np.tan(np.pi / 3.0)
+        h = 0.5 * np.tan(np.pi / 3.0)
+        
+        # Calculate the triangles' location 
+        ltriangle_x = np.array([0, 0.5, 1, 0])
+        ltriangle_y = np.array([0, h, 0, 0])
+        rtriangle_x = ltriangle_x + 2 * offset + 1
+        rtriangle_y = ltriangle_y
+        
+        # Calculate the diamond's location 
+        diamond_x = np.array([0.5, 1, 1.5, 1, 0.5]) + offset
+        diamond_y = h * (np.array([1, 2, 1, 0, 1])) + \
+            (offset * np.tan(np.pi / 3))
+        
+        # Plot the triangles and diamond
+        fig = plt.figure(figsize=(10, 10), dpi=100)
+        ax = fig.add_subplot(111, aspect='equal', frameon=False, 
+                             xticks=[], yticks=[])
+        ax.plot(ltriangle_x, ltriangle_y, '-k', lw=1.0)
+        ax.plot(rtriangle_x, rtriangle_y, '-k', lw=1.0)
+        ax.plot(diamond_x, diamond_y, '-k', lw=1.0)
+        
+        # Plot the lines with interval of 20%
+        interval = 0.2
+        ticklabels = ['0', '20', '40', '60', '80', '100']
+        for i, x in enumerate(np.linspace(0, 1, int(1/interval+1))):
+            # the left traingle
+            ax.plot([x, x - x / 2.0], 
+                    [0, x / 2.0 * np.tan(np.pi / 3)], 
+                    'k:', lw=1.0)
+            ## the bottom ticks
+            if i in [1, 2, 3, 4]: 
+                ax.text(x, 0-0.03, ticklabels[-i-1], 
+                        ha='center', va='center')
+            ax.plot([x, (1-x)/2.0+x], 
+                     [0, (1-x)/2.0*np.tan(np.pi/3)], 
+                     'k:', lw=1.0)
+            ## the right ticks
+            if i in [1, 2, 3, 4]:
+                ax.text((1-x)/2.0+x + 0.026, 
+                        (1-x)/2.0*np.tan(np.pi/3) + 0.015, 
+                        ticklabels[i], ha='center', va='center', rotation=-60)
+            ax.plot([x/2, 1-x/2], 
+                    [x/2*np.tan(np.pi/3), x/2*np.tan(np.pi/3)], 
+                    'k:', lw=1.0)
+            ## the left ticks
+            if i in [1, 2, 3, 4]:
+                ax.text(x/2 - 0.026, x/2*np.tan(np.pi/3) + 0.015, 
+                        ticklabels[i], ha='center', va='center', rotation=60)
+            
+            # the right traingle
+            ax.plot([x+1+2*offset, x-x/2.0+1+2*offset], 
+                    [0, x/2.0*np.tan(np.pi/3)], 
+                    'k:', lw=1.0)
+            ## the bottom ticks
+            if i in [1, 2, 3, 4]:
+                ax.text(x+1+2*offset, 0-0.03, 
+                        ticklabels[i], ha='center', va='center')
+            ax.plot([x+1+2*offset, (1-x)/2.0+x+1+2*offset],
+                     [0, (1-x)/2.0*np.tan(np.pi/3)], 
+                     'k:', lw=1.0)
+            ## the right ticks
+            if i in [1, 2, 3, 4]:
+                ax.text((1-x)/2.0+x+1+2*offset  + 0.026,
+                        (1-x)/2.0*np.tan(np.pi/3) + 0.015, 
+                        ticklabels[-i-1], ha='center', va='center',
+                        rotation=-60)
+            ax.plot([x/2+1+2*offset, 1-x/2+1+2*offset], 
+                    [x/2*np.tan(np.pi/3), x/2*np.tan(np.pi/3)], 'k:', lw=1.0)
+            ## the left ticks
+            if i in [1, 2, 3, 4]:
+                ax.text(x/2+1+2*offset - 0.026, x/2*np.tan(np.pi/3) + 0.015, 
+                        ticklabels[-i-1], ha='center', va='center',
+                        rotation=60)
+            
+            # the diamond
+            ax.plot([0.5 + offset + 0.5 / (1/interval) * x/interval,
+                     1 + offset + 0.5 / (1/interval) * x / interval], 
+                     [h + offset * np.tan(np.pi/3) + 0.5 / (1/interval) *\
+                      x / interval * np.tan(np.pi / 3), 
+                      offset * np.tan(np.pi / 3) + 0.5 / (1/interval) *\
+                          x/interval*np.tan(np.pi/3)], 'k:', lw=1.0)
+            ## the upper left and lower right
+            if i in [1, 2, 3, 4]: 
+                ax.text(0.5+offset+0.5/(1/interval)*x/interval - 0.026, 
+                        h+offset*np.tan(np.pi/3)+0.5/(1/interval)*x\
+                            /interval*np.tan(np.pi/3) + 0.015, ticklabels[i], 
+                        ha='center', va='center', rotation=60)
+                ax.text(1+offset+0.5/(1/interval)*x/interval + 0.026,
+                        offset*np.tan(np.pi/3)+0.5/(1/interval)*x \
+                            /interval*np.tan(np.pi/3) - 0.015,
+                            ticklabels[-i-1], 
+                        ha='center', va='center', rotation=60)
+            ax.plot([0.5+offset+0.5/(1/interval)*x/interval,
+                     1+offset+0.5/(1/interval)*x/interval], 
+                     [h+offset*np.tan(np.pi/3)-0.5/(1/interval)*x\
+                      /interval*np.tan(np.pi/3),
+                      2*h+offset*np.tan(np.pi/3)-0.5/(1/interval)*\
+                          x/interval*np.tan(np.pi/3)],'k:', lw=1.0)
+            ## the lower left and upper right
+            if i in [1, 2, 3, 4]:  
+                ax.text(0.5+offset+0.5/(1/interval)*x/interval- 0.026,
+                        h+offset*np.tan(np.pi/3)-0.5/(1/interval)*x\
+                            /interval*np.tan(np.pi/3) - 0.015, ticklabels[i], 
+                        ha='center', va='center', rotation=-60)
+                ax.text(1+offset+0.5/(1/interval)*x/interval + 0.026,
+                        2*h+offset*np.tan(np.pi/3)-0.5/(1/interval)*\
+                            x/interval*np.tan(np.pi/3) + 0.015,
+                            ticklabels[-i-1], ha='center', va='center',
+                            rotation=-60)
+        
+        # Labels and title
+        plt.text(0.5, -offset, '%' + '$Ca^{2+}$', 
+                 ha='center', va='center', fontsize=12)
+        plt.text(1+2*offset+0.5, -offset, self._cloride_piper_axis(an_col_names), 
+                ha='center', va='center', fontsize=12)
+        plt.text(0.25-offset*np.cos(np.pi/30), 0.25*np.tan(np.pi/3)+\
+                 offset*np.sin(np.pi/30), '%' + '$Mg^{2+}$',  
+                 ha='center', va='center', rotation=60, fontsize=12)
+        plt.text(1.75+2*offset+offset*np.cos(np.pi/30), 0.25*np.tan(np.pi/3)+\
+                 offset*np.sin(np.pi/30), '%' + '$SO_4^{2-}$',  
+                  ha='center', va='center', rotation=-60, fontsize=12)
+        plt.text(0.75+offset*np.cos(np.pi/30), 0.25*np.tan(np.pi/3)+offset*\
+                 np.sin(np.pi/30), '%' + '$Na^+$' + '+%' + '$K^+$',  
+                  ha='center', va='center', rotation=-60, fontsize=12)
+        plt.text(1+2*offset+0.25-offset*np.cos(np.pi/30),
+                 0.25*np.tan(np.pi/3)+offset*np.sin(np.pi/30),
+                 self._carbonate_piper_axis(an_col_names),  
+                 ha='center', va='center', rotation=60, fontsize=12)
+        
+        plt.text(0.5+offset+0.5*offset+offset*np.cos(np.pi/30),
+                 h+offset*np.tan(np.pi/3)+0.25*np.tan(np.pi/3)+\
+                     offset*np.sin(np.pi/30), '%' + '$SO_4^{2-}$' +\
+                         self._cloride_piper_axis(an_col_names),  
+                  ha='center', va='center', rotation=60, fontsize=12)
+        plt.text(1.5+offset-0.25+offset*np.cos(np.pi/30),
+                 h+offset*np.tan(np.pi/3)+0.25*np.tan(np.pi/3)+\
+                     offset*np.sin(np.pi/30), '%' + '$Ca^{2+}$' +\
+                         '+%' + '$Mg^{2+}$', 
+                  ha='center', va='center', rotation=-60, fontsize=12)
+        
+        # Fill the water types domain
+        ## the left traingle
+        plt.fill([0.25, 0.5, 0.75, 0.25], 
+                 [h/2, 0, h/2, h/2], color = (0.8, 0.8, 0.8), zorder=0)
+        ## the right traingle
+        plt.fill([1+2*offset+0.25, 1+2*offset+0.5, 1+2*offset+0.75, 1+2*\
+                  offset+0.25], 
+                 [h/2, 0, h/2, h/2], color = (0.8, 0.8, 0.8), zorder=0)
+        ## the diamond
+        plt.fill([0.5+offset+0.25, 0.5+offset+0.25+0.5, 0.5+offset+0.25+0.25,
+                  0.5+offset+0.25],
+                 [h+offset*np.tan(np.pi/3) - 0.5*np.sin(np.pi/3),
+                  h+offset*np.tan(np.pi/3) - 0.5*np.sin(np.pi/3),
+                  h+offset*np.tan(np.pi/3),
+                  h+offset*np.tan(np.pi/3) - 0.5*np.sin(np.pi/3)], 
+                 color = (0.8, 0.8, 0.8), zorder=0)
+        plt.fill([0.5+offset+0.25, 0.5+offset+0.25+0.25,
+                  0.5+offset+0.25+0.5, 0.5+offset+0.25],
+                 [h+offset*np.tan(np.pi/3) + 0.5*np.sin(np.pi/3),
+                  h+offset*np.tan(np.pi/3), 
+                  h+offset*np.tan(np.pi/3) + 0.5*np.sin(np.pi/3),
+                  h+offset*np.tan(np.pi/3) + 0.5*np.sin(np.pi/3)], 
+                 color = (0.8, 0.8, 0.8), zorder=0)
+        
+        # Calculate the percentages
+
+        an = self.anions_meqL_normalization()
+        cat = self.cations_meqL_normalization()
+
+        an_col_names = an.columns
+        carbonate_col_name = self._carbonate_col_name(an_col_names)
+        cloride_col_name = self._cloride_col_name(an_col_names)
+
+        # Convert into cartesian coordinates
+        cat_x = 0.5 * (2 * cat['Na_K'] + cat['Mg'])
+        cat_y = h * cat['Mg']
+        an_x = 1 + 2 * offset + 0.5 * (2 * an[cloride_col_name] + an['SO4'])
+        an_y = h * an['SO4']
+        d_x = an_y / (4 * h) + 0.5 * an_x - cat_y / (4 * h) + 0.5 * cat_x
+        d_y = 0.5 * an_y + h * an_x + 0.5 * cat_y - h * cat_x
+
+        # cat[:, 0] = meqL[:, 0] / sumcat                  # Ca
+        # cat[:, 1] = meqL[:, 1] / sumcat                  # Mg
+        # cat[:, 2] = (meqL[:, 2] + meqL[:, 3]) / sumcat   # Na+K
+        # an[:, 0] = (meqL[:, 4] + meqL[:, 5]) / suman     # HCO3 + CO3
+        # an[:, 2] = meqL[:, 6] / suman                    # Cl
+        # an[:, 1] = meqL[:, 7] / suman                    # SO4
+    
+        # Convert into cartesian coordinates
+        # cat_x = 0.5 * (2 * cat[:, 2] + cat[:, 1])
+        # cat_y = h * cat[:, 1]
+        # an_x = 1 + 2 * offset + 0.5 * (2 * an[:, 2] + an[:, 1])
+        # an_y = h * an[:, 1]
+        # d_x = an_y / (4 * h) + 0.5 * an_x - cat_y / (4 * h) + 0.5 * cat_x
+        # d_y = 0.5 * an_y + h * an_x + 0.5 * cat_y - h * cat_x
+    
+        # Plot the scatters
+        Labels = []
+        for i, row in self.df.iterrows():
+            if (row.Label in Labels or row.Label == ''):
+                TmpLabel = ''
+            else:
+                TmpLabel = row.Label
+                Labels.append(TmpLabel)
+             
+            try:
+                if (self.df['Color'].dtype is np.dtype('float')) or \
+                    (self.df['Color'].dtype is np.dtype('int64')):
+                    vmin = np.min(self.df['Color'].values)
+                    vmax = np.max(self.df['Color'].values)
+                    cf = plt.scatter(cat_x[i], cat_y[i], 
+                                     marker=row.Marker,
+                                     s=row.Size, 
+                                     c=row.Color, vmin=vmin, vmax=vmax,
+                                     alpha=row.Alpha,
+                                     edgecolors='black')
+                    plt.scatter(an_x[i], an_y[i], 
+                                marker=row.Marker,
+                                s=row.Size, 
+                                c=row.Color, vmin=vmin, vmax=vmax,
+                                alpha=row.Alpha,
+                                label=TmpLabel, 
+                                edgecolors='black')
+                    plt.scatter(d_x[i], d_y[i], 
+                                marker=row.Marker,
+                                s=row.Size, 
+                                c=row.Color, vmin=vmin, vmax=vmax,
+                                alpha=row.Alpha,
+                                edgecolors='black')
+                else:
+                    plt.scatter(cat_x[i], cat_y[i], 
+                                marker=row.Marker,
+                                s=row.Size, 
+                                c=row.Color, 
+                                alpha=row.Alpha,
+                                edgecolors='black')
+                    plt.scatter(an_x[i], an_y[i], 
+                                marker=row.Marker,
+                                s=row.Size, 
+                                c=row.Color, 
+                                alpha=row.Alpha,
+                                label=TmpLabel, 
+                                edgecolors='black')
+                    plt.scatter(d_x[i], d_y[i], 
+                                marker=row.Marker,
+                                s=row.Size, 
+                                c=row.Color, 
+                                alpha=row.Alpha,
+                                edgecolors='black')
+                    
+            except Exception:
+                msg = traceback.format_exc()
+                logging.append(msg)
+                
+        # Create the legend
+        if (self.df['Color'].dtype is np.dtype('float')) or \
+            (self.df['Color'].dtype is np.dtype('int64')):
+            cb = plt.colorbar(cf, extend='both', spacing='uniform',
+                              orientation='vertical', fraction=0.025, pad=0.05)
+            cb.ax.set_ylabel('$TDS$' + ' ' + '$(mg/L)$', rotation=90,
+                             labelpad=-75, fontsize=14)
+        
+        plt.legend(bbox_to_anchor=(0.15, 0.875), markerscale=1, fontsize=12,
+                   frameon=False, 
+                   labelspacing=0.25, handletextpad=0.25)
+        
+        # Save the figure
+        plt.savefig(figname, bbox_inches='tight', dpi=self.dpi)
+        
+        # Display the info
+        print("Piper plot created")    
+        
+        return
+
 

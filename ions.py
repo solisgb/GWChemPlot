@@ -37,6 +37,12 @@ class Ions():
                 'the same.'
             logging.append(msg)
             raise ValueError(msg)
+
+
+    def valid_ion_names(self):
+        print('Nombres válidos para los iones')
+        print(list(self.a_weight.keys()) + list(self.c_weight.keys()))
+        print()
     
     
     def weight_get(self, ion_names: [str]=[]) -> pd.DataFrame:

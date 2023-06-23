@@ -13,7 +13,7 @@ try:
     import traceback
     
     import littleLogging as logging
-    from gw_chem_plot import GWChemPlot
+    from gw_chem_plot import plot_col_names, GWChemPlot
 except ImportError as e:
     print( getattr(e, 'message', repr(e)))
     raise SystemExit(0)
@@ -24,6 +24,13 @@ if __name__ == "__main__":
     startTime = time()
 
     try:
+        from ions import Ions
+        info = Ions()
+        info.valid_ion_names()
+        plot_col_names()
+        raise SystemExit(0)
+        
+        
         data_path = './data/data_template.csv'
         df = pd.read_csv(data_path)
         
@@ -41,13 +48,12 @@ if __name__ == "__main__":
         fo = './out/facies_data_template.xlsx'
         df = gwch.ion_dominant_classification()
         df.to_excel(fo, index=False, float_format='%.3f')
-        raise SystemExit(0)
 
-        fig_Piper = './out/piper_data_template.png'
+        fig_Piper = './out/piper2_data_template.png'
         fig_Schoeller = './out/schoeller_data_template.png'
         fig_Stiff = './out/stiff_data_template.png'
 
-        gwch.plot_Piper(fig_Piper)
+        gwch.plot_Piper2(fig_Piper)
         gwch.plot_Shoeller(fig_Schoeller)
         gwch.plot_Stiff(fig_Stiff)
 
