@@ -16,23 +16,17 @@ from ions import Ions
 import littleLogging as logging
 
 
-def plot_col_names() -> None:
-    """
-    Name of the parameters to be assigned that affect the appearance of the graphs.
+_graph_parameters = \
+    {'Sample':'Identificador del análisis',
+     'Label':'Identificador del análisis en el diagrama (gráfico)',
+     'Color': 'Color de Label',
+     'Marker': 'Marcador (símbolo) de Label',
+     'Size': 'Tamaño en dpi del marcador',
+     'Alpha': 'Transparencia del marcador (superposiciones en el gráfico)'}
 
-    """
-    info = \
-        {'Sample':'Identificador del análisis',
-         'Label':'Identificador del análisis en el diagrama (gráfico)',
-         'Color': 'Color de Label',
-         'Marker': 'Marcador (símbolo) de Label',
-         'Size': 'Tamaño en dpi del marcador',
-         'Alpha': 'Transparencia del marcador (superposiciones en el gráfico)'}
-    
-    print("Graph's parameters")
-    for key, value in info.items():
-        print(key, ':', value)
-    print()
+
+def graph_parameters_get() -> dict:
+    return _graph_parameters
 
 
 class GWChemPlot():
@@ -85,8 +79,6 @@ class GWChemPlot():
     @property
     def dpi(self):
         return self._atr['dpi']
-
-
 
 
     def check_column_names(self, df: pd.DataFrame) -> None:

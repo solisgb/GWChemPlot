@@ -11,6 +11,7 @@ import littleLogging as logging
 
 
 class Ions():
+  
     
     def __init__(self):
         """
@@ -18,36 +19,41 @@ class Ions():
         ions weight from https://webqc.org/
         """
         # anions
-        self.a_weight = {'Cl': 35.4530, 'SO4': 96.0626, 'CO3': 60.0089,
-                         'HCO3': 61.0168, 'NO3': 62.0049}
-        self.a_charge = {'Cl': -1, 'SO4': -2, 'CO3': -2, 'HCO3': -1, 
-                         'NO3': -1}
-        if sorted(self.a_weight.keys()) != sorted(self.a_charge.keys()):
-            msg = 'The keys in Ions.a_weight and Ions.a_charge must be ' +\
+        self._a_weight = {'Cl': 35.453, 'SO4': 96.0626, 'CO3': 60.0089,
+                          'HCO3': 61.0168, 'NO3': 62.0049}
+        self._a_charge = {'Cl': -1, 'SO4': -2, 'CO3': -2, 'HCO3': -1, 
+                          'NO3': -1}
+        if sorted(self._a_weight.keys()) != sorted(self._a_charge.keys()):
+            msg = 'The keys in Ions._a_weight and Ions._a_charge must be ' +\
                 'the same.'
             logging.append(msg)
             raise ValueError(msg)
         
         # cations
-        self.c_weight = {'Ca': 40.078, 'Mg': 24.305, 'K': 39.0983,
-                         'Na': 22.989769}
-        self.c_charge = {'Ca': 2, 'Mg': 2, 'K': 1, 'Na': 1}
-        if sorted(self.c_weight.keys()) != sorted(self.c_charge.keys()):
+        self._c_weight = {'Ca': 40.078, 'Mg': 24.305, 'K': 39.0983,
+                          'Na': 22.989769}
+        self._c_charge = {'Ca': 2, 'Mg': 2, 'K': 1, 'Na': 1}
+        if sorted(self._c_weight.keys()) != sorted(self._c_charge.keys()):
             msg = 'The keys in Ions.c_weight and Ions.c_charge must be ' +\
                 'the same.'
             logging.append(msg)
             raise ValueError(msg)
 
 
-    def valid_ion_names(self):
-        print('Nombres válidos para los iones')
-        print(list(self.a_weight.keys()) + list(self.c_weight.keys()))
-        print()
+    def anions_names_get(self) -> [str]:
+        return list(self._a_weight.keys())
+    
+    
+    def cations_names_get(self) -> [str]:
+        return list(self._c_weight.keys())
+
+
+    def ions_names_get(self) -> [str]:
+        return self.anions_names_get() + self.cations_names_get()
     
     
     def weight_get(self, ion_names: [str]=[]) -> pd.DataFrame:
-        # Merge dictionaries
-        iw = {**self.a_weight, **self.c_weight}
+        iw = {**self._a_weight, **self._c_weight}  # Merge dictionaries
         if ion_names:
             pd.DataFrame([iw.values()], columns=iw.keys())
             return pd.DataFrame([iw])[ion_names]
@@ -57,8 +63,7 @@ class Ions():
 
     
     def charge_get(self, ion_names: [str]=[]) -> pd.DataFrame:
-        # Merge dictionaries
-        ich = {**self.a_charge, **self.c_charge}
+        ich = {**self._a_charge, **self._c_charge}  # Merge dictionaries
         if ion_names:
             return pd.DataFrame([ich])[ion_names]
         else:
@@ -73,12 +78,12 @@ class Ions():
 
 
     def anions_in_df(self, df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in self.a_charge]
+        cols = [c1 for c1 in df.columns if c1 in self._a_charge]
         return cols
 
 
     def cations_in_df(self, df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in self.c_charge]
+        cols = [c1 for c1 in df.columns if c1 in self._c_charge]
         return cols
 
 
