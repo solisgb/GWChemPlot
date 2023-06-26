@@ -16,7 +16,11 @@ from ions import Ions
 import littleLogging as logging
 
 
-def plot_col_names():
+def plot_col_names() -> None:
+    """
+    Name of the parameters to be assigned that affect the appearance of the graphs.
+
+    """
     info = \
         {'Sample':'Identificador del análisis',
          'Label':'Identificador del análisis en el diagrama (gráfico)',
@@ -25,7 +29,7 @@ def plot_col_names():
          'Size': 'Tamaño en dpi del marcador',
          'Alpha': 'Transparencia del marcador (superposiciones en el gráfico)'}
     
-    print('Parámetros configurables de los gráficos')
+    print("Graph's parameters")
     for key, value in info.items():
         print(key, ':', value)
     print()
