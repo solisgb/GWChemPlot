@@ -13,7 +13,7 @@ import pathlib
 import traceback
     
 from ions import Ions
-import littleLogging as logging
+import littleLogging as myLogging
 
 
 _graph_parameters = \
@@ -45,40 +45,43 @@ class GWChemPlot():
         if unit not in ['mg/L', 'meq/L']:
            raise ValueError('units must be mg/L or meq/L')
 
-        df.dropna(inplace=True)
-
         self.check_column_names(df)
-        
-        self._atr = {'df': df.copy(), 'unit': unit, 'dpi': dpi}
 
-        self._ions = Ions()
+        df.dropna(inplace=True)
+        
+        #self._atr = {'df': df.copy(), 'unit': unit, 'dpi': dpi}
+        
+        self._data: pd.DataFrame = df.copy()
+        self._unit: str = unit
+        self._dpi: int = dpi
+        self._ions: Ions = Ions()
 
 
     @property
     def df(self):
-        return self._atr['df']    
+        return self._data    
 
     
     @property
     def data(self):
-        return self.df
+        return self._data
 
 
-    @df.setter
-    def df(self, new_df: pd.DataFrame) -> None:
+    @data.setter
+    def data(self, new_df: pd.DataFrame) -> None:
         self.check_column_names(new_df)
-        new_df.dropna(inplace=True)
-        self._atr['df'] = new_df.copy()
+        new_df = new_df.dropna()
+        self._data = new_df.copy()
 
 
     @property
     def unit(self):
-        return self._atr['unit']
+        return self._unit
     
     
     @property
     def dpi(self):
-        return self._atr['dpi']
+        return self._dpi
 
 
     def check_column_names(self, df: pd.DataFrame) -> None:
@@ -98,7 +101,7 @@ class GWChemPlot():
         if len(absent) > 0:
             a = ','.join(absent)
             msg = f'The data file lacks the required columns {a}'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError(msg)
 
         required_col_names = ['HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg']
@@ -106,7 +109,7 @@ class GWChemPlot():
         if len(absent) > 0:
             a = ','.join(absent)
             msg = f'The data file lacks the required columns {a}'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError(msg)
 
 
@@ -125,7 +128,7 @@ class GWChemPlot():
         if len(absent) > 0:
             a = ','.join(absent)
             msg = f'The data file lacks the columns {a}'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError(msg)
         return True
 
@@ -155,7 +158,7 @@ class GWChemPlot():
             cols = ['Ca', 'Mg', 'Na', 'K', 'HCO3', 'CO3', 'Cl', 'SO4']
         else:
             msg = f'Graph name not supported: {graph_name}'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError (msg)
         
         self.check_columns_are_present(cols)
@@ -244,7 +247,7 @@ class GWChemPlot():
                         label=TmpLabel) 
             except Exception:
                 msg = traceback.format_exc()
-                logging.append(msg)
+                myLogging.append(msg)
                 
         # Background settings
         ax.set_xticks([1, 2, 3, 4, 5, 6, 7])
@@ -301,68 +304,69 @@ class GWChemPlot():
         # Plot the Stiff diagrams for each sample
         nsucces = 0
         for i, row in self.df.iterrows():
-        
-            try:
-                x = [-(meqL[i, 2] + meqL[i, 3]), -meqL[i, 0], -meqL[i, 1], 
-                     meqL[i, 6], meqL[i, 4], meqL[i, 5],
-                     -(meqL[i, 2] + meqL[i, 3])]
-                y = [3, 2, 1, 1, 2, 3, 3]
+
+            x = [-(meqL[i, 2] + meqL[i, 3]), -meqL[i, 0], -meqL[i, 1], 
+                 meqL[i, 6], meqL[i, 4], meqL[i, 5],
+                 -(meqL[i, 2] + meqL[i, 3])]
+            y = [3, 2, 1, 1, 2, 3, 3]
+            
+            plt.figure(figsize=(3, 3))
+            plt.fill(x, y, facecolor='w', edgecolor='k', linewidth=1.25)
+            
+            plt.plot([0, 0], [1, 3], 'k-.', linewidth=1.25)
+            plt.plot([-0.5, 0.5], [2, 2], 'k-')
+  
+            cmax = cat_max if cat_max > an_max else an_max
+            plt.xlim([-cmax, cmax])
+            plt.text(-cmax, 2.9, 'Na$^+$' + '+' + 'K$^+$', fontsize=12,
+                     ha= 'right')
+            plt.text(-cmax, 1.9, 'Ca$^{2+}$', fontsize=12, ha= 'right')
+            plt.text(-cmax, 1.0, 'Mg$^{2+}$', fontsize=12, ha= 'right')
+            
+            plt.text(cmax, 2.9,'Cl$^-$',fontsize=12, ha= 'left')
+            plt.text(cmax, 1.9,'HCO'+'$_{3}^-$',fontsize=12,ha= 'left')
+            plt.text(cmax, 1.0,'SO'+'$_{4}^{2-}$',fontsize=12,ha= 'left')
+            
+            ax = plt.gca()
+            ax.spines['left'].set_color('None')
+            ax.spines['right'].set_color('None')
+            ax.spines['top'].set_color('None')
+            plt.minorticks_off()
+            plt.tick_params(which='major', direction='out', length=4,
+                            width=1.25)
+            plt.tick_params(which='minor', direction='in', length=2,
+                            width=1.25)
+            ax.spines['bottom'].set_linewidth(1.25)
+            ax.spines['bottom'].set_color('k')
+            #ylim(0.8, 3.2)
+            plt.setp(plt.gca(), yticks=[], yticklabels=[])
+            #plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+            ticks = np.array([-cmax, -cmax/2, 0, cmax/2, cmax])
+            tickla = [f'{tick:1.0f}' for tick in abs(ticks)]
+            ax.xaxis.set_ticks(ticks)
+            ax.xaxis.set_ticklabels(tickla)
+            
+            labels = ax.get_xticklabels()
+            [label.set_fontsize(10) for label in labels]
+            ax.set_xlabel('meq/L', fontsize=12,
+                          weight='normal')
                 
-                plt.figure(figsize=(3, 3))
-                plt.fill(x, y, facecolor='w', edgecolor='k', linewidth=1.25)
-                
-                plt.plot([0, 0], [1, 3], 'k-.', linewidth=1.25)
-                plt.plot([-0.5, 0.5], [2, 2], 'k-')
-      
-                cmax = cat_max if cat_max > an_max else an_max
-                plt.xlim([-cmax, cmax])
-                plt.text(-cmax, 2.9, 'Na$^+$' + '+' + 'K$^+$', fontsize=12,
-                         ha= 'right')
-                plt.text(-cmax, 1.9, 'Ca$^{2+}$', fontsize=12, ha= 'right')
-                plt.text(-cmax, 1.0, 'Mg$^{2+}$', fontsize=12, ha= 'right')
-                
-                plt.text(cmax, 2.9,'Cl$^-$',fontsize=12, ha= 'left')
-                plt.text(cmax, 1.9,'HCO'+'$_{3}^-$',fontsize=12,ha= 'left')
-                plt.text(cmax, 1.0,'SO'+'$_{4}^{2-}$',fontsize=12,ha= 'left')
-                
-                ax = plt.gca()
-                ax.spines['left'].set_color('None')
-                ax.spines['right'].set_color('None')
-                ax.spines['top'].set_color('None')
-                plt.minorticks_off()
-                plt.tick_params(which='major', direction='out', length=4,
-                                width=1.25)
-                plt.tick_params(which='minor', direction='in', length=2,
-                                width=1.25)
-                ax.spines['bottom'].set_linewidth(1.25)
-                ax.spines['bottom'].set_color('k')
-                #ylim(0.8, 3.2)
-                plt.setp(plt.gca(), yticks=[], yticklabels=[])
-                #plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-                ticks = np.array([-cmax, -cmax/2, 0, cmax/2, cmax])
-                tickla = [f'{tick:1.0f}' for tick in abs(ticks)]
-                ax.xaxis.set_ticks(ticks)
-                ax.xaxis.set_ticklabels(tickla)
-                
-                labels = ax.get_xticklabels()
-                [label.set_fontsize(10) for label in labels]
-                ax.set_xlabel('meq/L', fontsize=12,
-                              weight='normal')
-                    
-                ax.set_title(row.Sample, fontsize=14, weight='normal')
+            ax.set_title(row.Sample, fontsize=14, weight='normal')
+
+            a = row.Sample
+            if '/' in a:
+                a = a.replace('/', '-')
+
+            fo_stiff = \
+                pathlib.PureWindowsPath.joinpath(parent,\
+                    f'{stem}_{a}{suffix}')
     
-                fo_stiff = \
-                    pathlib.PureWindowsPath.joinpath(parent,\
-                        f'{stem}_{row.Sample}{suffix}')
-        
-                # Save the figure
-                plt.savefig(fo_stiff, bbox_inches='tight', dpi=self.dpi)
-                plt.close()
-                nsucces += 1
-                print(f'{stem}_{row.Sample}{suffix}')
-            except Exception:
-                msg = traceback.format_exc()
-                logging.append(f'Label {i:d}\n{msg}')
+            # Save the figure
+            plt.savefig(fo_stiff, bbox_inches='tight', dpi=self.dpi)
+            plt.close()
+            nsucces += 1
+            print(f'{stem}_{row.Sample}{suffix}')
+
         
         # Display the info
         if len(self.df) == nsucces:
@@ -760,55 +764,50 @@ class GWChemPlot():
                 TmpLabel = row.Label
                 Labels.append(TmpLabel)
              
-            try:
-                if (self.df['Color'].dtype is np.dtype('float')) or \
-                    (self.df['Color'].dtype is np.dtype('int64')):
-                    vmin = np.min(self.df['Color'].values)
-                    vmax = np.max(self.df['Color'].values)
-                    cf = plt.scatter(cat_x[i], cat_y[i], 
-                                     marker=row.Marker,
-                                     s=row.Size, 
-                                     c=row.Color, vmin=vmin, vmax=vmax,
-                                     alpha=row.Alpha,
-                                     edgecolors='black')
-                    plt.scatter(an_x[i], an_y[i], 
-                                marker=row.Marker,
-                                s=row.Size, 
-                                c=row.Color, vmin=vmin, vmax=vmax,
-                                alpha=row.Alpha,
-                                label=TmpLabel, 
-                                edgecolors='black')
-                    plt.scatter(d_x[i], d_y[i], 
-                                marker=row.Marker,
-                                s=row.Size, 
-                                c=row.Color, vmin=vmin, vmax=vmax,
-                                alpha=row.Alpha,
-                                edgecolors='black')
-                else:
-                    plt.scatter(cat_x[i], cat_y[i], 
-                                marker=row.Marker,
-                                s=row.Size, 
-                                c=row.Color, 
-                                alpha=row.Alpha,
-                                edgecolors='black')
-                    plt.scatter(an_x[i], an_y[i], 
-                                marker=row.Marker,
-                                s=row.Size, 
-                                c=row.Color, 
-                                alpha=row.Alpha,
-                                label=TmpLabel, 
-                                edgecolors='black')
-                    plt.scatter(d_x[i], d_y[i], 
-                                marker=row.Marker,
-                                s=row.Size, 
-                                c=row.Color, 
-                                alpha=row.Alpha,
-                                edgecolors='black')
+            if (self.df['Color'].dtype is np.dtype('float')) or \
+                (self.df['Color'].dtype is np.dtype('int64')):
+                vmin = np.min(self.df['Color'].values)
+                vmax = np.max(self.df['Color'].values)
+                cf = plt.scatter(cat_x[i], cat_y[i], 
+                                 marker=row.Marker,
+                                 s=row.Size, 
+                                 c=row.Color, vmin=vmin, vmax=vmax,
+                                 alpha=row.Alpha,
+                                 edgecolors='black')
+                plt.scatter(an_x[i], an_y[i], 
+                            marker=row.Marker,
+                            s=row.Size, 
+                            c=row.Color, vmin=vmin, vmax=vmax,
+                            alpha=row.Alpha,
+                            label=TmpLabel, 
+                            edgecolors='black')
+                plt.scatter(d_x[i], d_y[i], 
+                            marker=row.Marker,
+                            s=row.Size, 
+                            c=row.Color, vmin=vmin, vmax=vmax,
+                            alpha=row.Alpha,
+                            edgecolors='black')
+            else:
+                plt.scatter(cat_x[i], cat_y[i], 
+                            marker=row.Marker,
+                            s=row.Size, 
+                            c=row.Color, 
+                            alpha=row.Alpha,
+                            edgecolors='black')
+                plt.scatter(an_x[i], an_y[i], 
+                            marker=row.Marker,
+                            s=row.Size, 
+                            c=row.Color, 
+                            alpha=row.Alpha,
+                            label=TmpLabel, 
+                            edgecolors='black')
+                plt.scatter(d_x[i], d_y[i], 
+                            marker=row.Marker,
+                            s=row.Size, 
+                            c=row.Color, 
+                            alpha=row.Alpha,
+                            edgecolors='black')
                     
-            except Exception:
-                msg = traceback.format_exc()
-                logging.append(msg)
-                
         # Create the legend
         if (self.df['Color'].dtype is np.dtype('float')) or \
             (self.df['Color'].dtype is np.dtype('int64')):
@@ -1066,7 +1065,6 @@ class GWChemPlot():
                 TmpLabel = row.Label
                 Labels.append(TmpLabel)
              
-            try:
                 if (self.df['Color'].dtype is np.dtype('float')) or \
                     (self.df['Color'].dtype is np.dtype('int64')):
                     vmin = np.min(self.df['Color'].values)
@@ -1110,11 +1108,7 @@ class GWChemPlot():
                                 c=row.Color, 
                                 alpha=row.Alpha,
                                 edgecolors='black')
-                    
-            except Exception:
-                msg = traceback.format_exc()
-                logging.append(msg)
-                
+
         # Create the legend
         if (self.df['Color'].dtype is np.dtype('float')) or \
             (self.df['Color'].dtype is np.dtype('int64')):
@@ -1122,11 +1116,11 @@ class GWChemPlot():
                               orientation='vertical', fraction=0.025, pad=0.05)
             cb.ax.set_ylabel('$TDS$' + ' ' + '$(mg/L)$', rotation=90,
                              labelpad=-75, fontsize=14)
-        
+
         plt.legend(bbox_to_anchor=(0.15, 0.875), markerscale=1, fontsize=12,
                    frameon=False, 
                    labelspacing=0.25, handletextpad=0.25)
-        
+
         # Save the figure
         plt.savefig(figname, bbox_inches='tight', dpi=self.dpi)
         

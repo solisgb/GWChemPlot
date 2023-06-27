@@ -7,7 +7,7 @@ Created on Sat Jun 17 12:35:59 2023
 import numpy as np
 import pandas as pd
 
-import littleLogging as logging
+import littleLogging as myLogging
 
 
 class Ions():
@@ -26,7 +26,7 @@ class Ions():
         if sorted(self._a_weight.keys()) != sorted(self._a_charge.keys()):
             msg = 'The keys in Ions._a_weight and Ions._a_charge must be ' +\
                 'the same.'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError(msg)
         
         # cations
@@ -36,7 +36,7 @@ class Ions():
         if sorted(self._c_weight.keys()) != sorted(self._c_charge.keys()):
             msg = 'The keys in Ions.c_weight and Ions.c_charge must be ' +\
                 'the same.'
-            logging.append(msg)
+            myLogging.append(msg)
             raise ValueError(msg)
 
 

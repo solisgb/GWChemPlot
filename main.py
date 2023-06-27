@@ -12,8 +12,8 @@ try:
     from time import time
     import traceback
     
-    import littleLogging as logging
-    from gw_chem_plot import plot_col_names, GWChemPlot
+    import littleLogging as myLogging
+    from gw_chem_plot import GWChemPlot
 except ImportError as e:
     print( getattr(e, 'message', repr(e)))
     raise SystemExit(0)
@@ -24,12 +24,6 @@ if __name__ == "__main__":
     startTime = time()
 
     try:
-        from ions import Ions
-        info = Ions()
-        info.valid_ion_names()
-        plot_col_names()
-        raise SystemExit(0)
-        
         
         data_path = './data/data_template.csv'
         df = pd.read_csv(data_path)
@@ -59,12 +53,12 @@ if __name__ == "__main__":
 
     except ValueError:
         msg = traceback.format_exc()
-        logging.append(msg)
+        myLogging.append(msg)
     except Exception:
         msg = traceback.format_exc()
-        logging.append(msg)
+        myLogging.append(msg)
     finally:
-        logging.dump()
+        myLogging.dump()
         xtime = time() - startTime
         print(f'El script tardó {xtime:0.1f} s')
 
