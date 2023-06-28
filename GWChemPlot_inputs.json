@@ -1,0 +1,8 @@
+{
+	"data_path" : "./data/data_template.csv",
+	"sheet_number" : 0,
+	"fo_facies" : "./out/facies_data_template.xlsx",
+	"fig_Piper" = "./out/piper2_data_template.png",
+	"fig_Schoeller" = "./out/schoeller_data_template.png",
+	"fig_Stiff" = "./out/stiff_data_template.png"
+}

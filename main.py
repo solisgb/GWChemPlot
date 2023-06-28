@@ -12,6 +12,7 @@ try:
     from time import time
     import traceback
     
+    from inputs import Inputs
     import littleLogging as myLogging
     from gw_chem_plot import GWChemPlot
 except ImportError as e:
@@ -25,8 +26,12 @@ if __name__ == "__main__":
 
     try:
         
-        data_path = './data/data_template.csv'
-        df = pd.read_csv(data_path)
+        ipt = Inputs()
+        
+        if ipt.file_data_is_csv():
+            df = pd.read_csv(ipt.data_path)
+        else:
+            df = pd.read_excel(ipt.data_path, sheet_name=ipt.sheet_number)
         
         gwch = GWChemPlot(df)
         
@@ -39,6 +44,7 @@ if __name__ == "__main__":
             if resp.lower() not in ('y', 'yes', '1'):
                 raise SystemExit(0)
 
+        resp = input("Do you want to generate the Piper diagram?: ")
         fo = './out/facies_data_template.xlsx'
         df = gwch.ion_dominant_classification()
         df.to_excel(fo, index=False, float_format='%.3f')

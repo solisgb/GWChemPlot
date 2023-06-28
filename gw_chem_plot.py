@@ -365,7 +365,7 @@ class GWChemPlot():
             plt.savefig(fo_stiff, bbox_inches='tight', dpi=self.dpi)
             plt.close()
             nsucces += 1
-            print(f'{stem}_{row.Sample}{suffix}')
+            print(f'Stiff diagram {stem}_{a}{suffix} saved')
 
         
         # Display the info
