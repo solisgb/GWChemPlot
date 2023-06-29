@@ -30,17 +30,22 @@ def graph_parameters_get() -> dict:
 
 
 class GWChemPlot():
+    """
+    Class to create Piper, Stiff and Scoeller diagrams to be saved an
+        image file.
+    """
 
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
         """
-        Groundwater chemical diagrams: Schoeller, Stiff, Piper
+        Instanciate
         
         Parameters
         ----------
-        df : Hydrochemical data to draw diagrams.
-        unit : The unit used in df (mg/L or meq/L). 
-        dpi : dot per inch in graph output files'
+        _data. Hydrochemical data to draw diagrams.
+        _unit. The unit used in df (mg/L or meq/L). 
+        _dpi. Dot per inch in graph output files
+        _ions. Ions object
         """
         if unit not in ['mg/L', 'meq/L']:
            raise ValueError('units must be mg/L or meq/L')
@@ -456,7 +461,7 @@ class GWChemPlot():
 
     def ion_dominant_classification(self) -> pd.DataFrame:
         """
-        Groundwater geochemical classification
+        Groundwater ion dominant classification
         Custodio E (1983). Hidrogeoquímica. 
         In Hidrología subterránea pp 1001-1095. Ed. Omga
         """
@@ -510,32 +515,32 @@ class GWChemPlot():
                 if r[cloride_col_name] >= 0.5:
                     idc_anions.append(f'{cloride_label} (sulfatada-bicarbonatada)')
                 else:
-                    idc_anions.append('Mixta ({cloride_label.lower()}-sulfatada-bicarbonatada)')               
+                    idc_anions.append(f'Mixta ({cloride_label.lower()}-sulfatada-bicarbonatada)')               
             elif r[cloride_col_name] > r[carbonate_col_name] > r['SO4']:
                 if r[cloride_col_name] >= 0.5:
                     idc_anions.append(f'{cloride_label} (bicarbonatada-sulfatada)')
                 else:
-                    idc_anions.append('Mixta ({cloride_label.lower()}-bicarbonatada-sulfatada)')               
+                    idc_anions.append(f'Mixta ({cloride_label.lower()}-bicarbonatada-sulfatada)')               
             elif r['SO4'] > r[cloride_col_name] > r[carbonate_col_name] :
                 if r['SO4'] >= 0.5:
                     idc_anions.append(f'Sulfatada ({cloride_label.lower()}-bicarbonatada)')
                 else:
-                    idc_anions.append('Mixta (sulfatada-{cloride_label.lower()}-bicarbonatada)')               
+                    idc_anions.append(f'Mixta (sulfatada-{cloride_label.lower()}-bicarbonatada)')               
             elif r['SO4'] > r[carbonate_col_name] > r[cloride_col_name]:
                 if r['SO4'] >= 0.5:
                     idc_anions.append(f'Sulfatada (bicarbonatada-{cloride_label.lower()})')
                 else:
-                    idc_anions.append('Mixta (sulfatada-bicarbonatada-{cloride_label.lower()})')
+                    idc_anions.append(f'Mixta (sulfatada-bicarbonatada-{cloride_label.lower()})')
             elif r[carbonate_col_name] > r[cloride_col_name] > r['SO4']:
                 if r[carbonate_col_name] >= 0.5:
                     idc_anions.append(f'Bicarbonatada ({cloride_label.lower()}-sulfatada)')
                 else:
-                    idc_anions.append('Mixta (bicarbonatada-{cloride_label.lower()}-sulfatada)')            
+                    idc_anions.append(f'Mixta (bicarbonatada-{cloride_label.lower()}-sulfatada)')            
             elif r[carbonate_col_name] > r['SO4'] > r[cloride_col_name]:
                 if r[carbonate_col_name] >= 0.5:
                     idc_anions.append(f'Bicarbonatada (sulfatada-{cloride_label.lower()})')
                 else:
-                    idc_anions.append('Mixta (bicarbonatada-(sulfatada-{cloride_label.lower()})')            
+                    idc_anions.append(f'Mixta (bicarbonatada-(sulfatada-{cloride_label.lower()})')            
 
         idc['cations_classified'] = idc_cations
         idc['anions_classified'] = idc_anions
