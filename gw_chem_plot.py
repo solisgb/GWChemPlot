@@ -91,7 +91,7 @@ class GWChemPlot():
 
     def check_column_names(self, df: pd.DataFrame) -> None:
         """
-        Checks if self.df has a subset of columns required to make graphs
+        Checks if self._data has a subset of columns required to make graphs
     
         Raises
         ------
