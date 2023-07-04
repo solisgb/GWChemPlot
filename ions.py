@@ -15,8 +15,11 @@ class Ions():
     
     def __init__(self):
         """
-        Weights and charge in main ions in groundwater 
-        ions weight from https://webqc.org/
+        Weights and charge of major ions in groundwater 
+        Ions weight from https://webqc.org/
+        This class is for use from GWChemPlot only and the considered ions
+            are related with the internals of GWChemPlot. If you add new ions
+            consider the possible side effects in the class GWChemPlot first.
         """
         # anions
         self._a_weight = {'Cl': 35.453, 'SO4': 96.0626, 'CO3': 60.0089,

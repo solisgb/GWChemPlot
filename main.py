@@ -36,33 +36,33 @@ if __name__ == "__main__":
         
         gwp = GWChemPlot(df)
         
-        resp = input("Check charge balance error (y/n) ?: ")
-        if resp.lower() in ('y', 'yes', '1'):
-            er_cb = gwp.cbe()
-            er_cb.to_excel(ipt.fo_cbe, index=False, float_format='%.3f')
-            resp = input("Charge balance error saved, continue (y/n) ?: ")
-            if resp.lower() not in ('y', 'yes', '1'):
-                raise SystemExit(0)
-            mask = (np.abs(er_cb['cbe']) <= ipt.max_cbe)
-            gwp.data = gwp.data[mask]
+        # resp = input("Check charge balance error (y/n) ?: ")
+        # if resp.lower() in ('y', 'yes', '1'):
+        #     er_cb = gwp.cbe()
+        #     er_cb.to_excel(ipt.fo_cbe, index=False, float_format='%.3f')
+        #     resp = input("Charge balance error saved, continue (y/n) ?: ")
+        #     if resp.lower() not in ('y', 'yes', '1'):
+        #         raise SystemExit(0)
+        #     mask = (np.abs(er_cb['cbe']) <= ipt.max_cbe)
+        #     gwp.data = gwp.data[mask]
 
-        resp = input("Generate ion dominant classif. file (y/n) ?: ")
-        if resp.lower() in ('y', 'yes', '1'):
-            df = gwp.ion_dominant_classification()
-            df.to_excel(ipt.fo_ion_dominant_classif, index=False,
-                        float_format='%.3f')
+        # resp = input("Generate ion dominant classif. file (y/n) ?: ")
+        # if resp.lower() in ('y', 'yes', '1'):
+        #     df = gwp.ion_dominant_classification()
+        #     df.to_excel(ipt.fo_ion_dominant_classif, index=False,
+        #                 float_format='%.3f')
 
         resp = input("Generate Piper diagram (y/n) ?: ")
         if resp.lower() in ('y', 'yes', '1'):
             gwp.plot_Piper2(ipt.fig_Piper)
             
-        resp = input("Generate Shoeller figure (y/n) ?: ")
-        if resp.lower() in ('y', 'yes', '1'):
-            gwp.plot_Shoeller(ipt.fig_Schoeller)
+        # resp = input("Generate Shoeller figure (y/n) ?: ")
+        # if resp.lower() in ('y', 'yes', '1'):
+        #     gwp.plot_Shoeller(ipt.fig_Schoeller)
             
-        resp = input("Generate Stiff diagram (y/n) ?: ")
-        if resp.lower() in ('y', 'yes', '1'):
-            gwp.plot_Stiff(ipt.fig_Stiff)            
+        # resp = input("Generate Stiff diagram (y/n) ?: ")
+        # if resp.lower() in ('y', 'yes', '1'):
+        #     gwp.plot_Stiff(ipt.fig_Stiff)            
 
     except ValueError:
         msg = traceback.format_exc()
