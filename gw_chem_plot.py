@@ -8,6 +8,7 @@ fork of WQChartPy https://github.com/jyangfsu/WQChartPy
 """
 import numpy as np
 import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
@@ -17,30 +18,20 @@ from ions import Ions
 import littleLogging as myLogging
 
 
-_graph_parameters = \
-    {'Sample':'Identificador del análisis',
-     'Label':'Identificador del análisis en el diagrama (gráfico)',
-     'Color': 'Color de Label',
-     'Marker': 'Marcador (símbolo) de Label',
-     'Size': 'Tamaño en dpi del marcador',
-     'Alpha': 'Transparencia del marcador (superposiciones en el gráfico)'}
-
-
-def graph_parameters_get() -> dict:
-    return _graph_parameters
-
-
 class GWChemPlot():
     """
     Class to create Piper, Stiff and Schoeller diagrams to be saved as 
         image files.
     """
 
-    _required_graph_names = ('Sample', 'Label')
-    _optional_graph_names =  ('Color', 'Marker', 'Size', 'Alpha')
-    _defaults_graph_params = {'size': 30, 'alpha': 0.6}  
+    _required_analysis_name = ('Sample',)
+    _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
+    _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
+    _default_color = 'black'
     _required_ions_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
     _optional_ions_names = ('CO3', 'NO3')
+    _default_marker = 'o'
+
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
         """
@@ -65,7 +56,7 @@ class GWChemPlot():
         self.check_column_names(df)
         df = df.dropna(subset = GWChemPlot._required_ions_names)
         
-        set_colors(df)
+        GWChemPlot._set_colors(df)
         
         opt_ions_considered = []
         for c in GWChemPlot._optional_ions_names:
@@ -80,6 +71,26 @@ class GWChemPlot():
                              'axes.labelweight': 'bold', 'axes.titlesize' : 9,
                              'xtick.labelsize': 9, 'ytick.labelsize': 9,
                              'legend.fontsize' : 9, 'figure.titlesize': 10}
+
+
+    @staticmethod
+    def required_ion_names():
+        return GWChemPlot._required_ions_names
+
+
+    @staticmethod
+    def optional_ion_names():
+        return GWChemPlot._optional_ions_names
+
+
+    @staticmethod
+    def analysis_name():
+        return GWChemPlot._required_analysis_name
+
+
+    @staticmethod
+    def required_graph_names():
+        return GWChemPlot._required_graph_names
 
 
     @property
@@ -149,26 +160,112 @@ class GWChemPlot():
 
 
     @staticmethod
-    def set_colors(df: pd.DataFrame) -> None:
+    def set_labels(df: pd.DataFrame, unique_row_id: bool, first_id: int = 1,
+                   suffix: str = '') -> None:
         """
-        If 'Color' not in df.columns set a new column with default values
+        If set de labels of samples considering a main_column and optionally 
+            additional columns
         Parameters
         ----------
         df : data read from data file
+        unique_row_id. If True, each row will have a unique identifiers;
+            else each row with the same value in columns Sample will have the
+            the same identifier
+        suffix. Suffix to de added to row identifier
         """
-        if 'Color' in df.columns:
+        if unique_row_id:
+            series = pd.Series(range(first_id, first_id+len(df)))
+            series = series.astype(str)
+            if len(suffix) > 0:
+                series = suffix + series
+            df['Label'] = series
             return
         
-        df['Color'] = 'black'
+        samples =  df['Sample'].unique()
+        for i, s1 in enumerate(samples):
+            df.loc[df['Sample'] == s1, 'Label'] = suffix + str(first_id + i) 
+
+
+    @staticmethod
+    def color_names(ncolors: int=1000) -> None:
+        colors = [(k, v) for k, v in mcolors.TABLEAU_COLORS.items()]
+        mc = len(colors)
+        if ncolors >= mc:
+            ncolors = mc
+        elif ncolors < 0:
+            ncolors = 1
+        return colors[0: ncolors] 
+
+        
+    @staticmethod
+    def set_colors(df: pd.DataFrame, single_color: bool = False, 
+                   selected_color: str = 'black') -> None:
+        """
+        If set de Color column in df
+        Parameters
+        ----------
+        df : data read from data file
+        single_color. All rows in df have the same color
+        selected_color. If single_color is True, fill column Color with
+            selected_color
+        """
+        if single_color:
+            kcolors = [k[4:] for k in mcolors.TABLEAU_COLORS]
+            if selected_color not in kcolors:
+                selected_color = GWChemPlot._default_color
+            df['Color'] = selected_color   
+            return
+
+        if 'Label' not in df.columns:
+            raise ValueError('Column Label must exists')
+            
         labels =  df['Label'].unique()
         colors = [v for v in mcolors.TABLEAU_COLORS.values()]
-        for i, l1 in enumerate(labels):
-            ic = i
-            if i+1 == len(colors):
-                ic = 0 
-#TODO            
-            df.loc[df['Label'] == l1, 'Color'] = 2
-            
+        icolor = -1
+        for lab in labels:
+            icolor += 1
+            if icolor == len(colors):
+                icolor = 0 
+            df.loc[df['Label'] == lab, 'Color'] = colors[icolor]
+
+        
+    @staticmethod
+    def set_markers(df: pd.DataFrame, single_marker: bool=True,
+                    selected_marker: str = 'o') -> None:
+
+        for a in ('Label', 'Color'):
+            if a not in df.columns:
+                raise ValueError(f'Column {a} must exists')
+        
+        markers = [k for k in Line2D.markers if k not in ('None', 'none', ' ',
+                                                         '')]
+
+        if single_marker:
+            _count = df[['Label', 'Color']].value_counts()
+            max_count = _count.max()
+            if max_count > 1:
+                single_marker = False
+                myLogging.append('The number of pairs [Label, Color] >1, ' + 
+                                 'marker can not be unique', False)
+
+        if single_marker:
+            if selected_marker not in markers:
+                selected_marker = GWChemPlot._default_marker
+            df['Marker'] = selected_marker
+            return
+#TODO
+        unique_pairs = df[['Label', 'Color']].drop_duplicates()
+        # for index, row in unique_pairs.iterrows():
+        #     c0_value = row['c0']
+        #     c1_value = row['c1']
+        #     df.loc[(df['c0'] == c0_value) & (df['c1'] == c1_value), 'c2'] = index
+
+        
+        
+        
+
+
+
 
 
     def check_columns_are_present(self, cols: list[str]) -> bool:
