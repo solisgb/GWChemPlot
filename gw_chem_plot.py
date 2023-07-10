@@ -161,39 +161,74 @@ class GWChemPlot():
 
     @staticmethod
     def set_labels(df: pd.DataFrame, unique_row_id: bool, first_id: int = 1,
-                   suffix: str = '') -> None:
+                   suffix: str = '', cols_for_label: [str] = [],
+                   separator: str= '-') -> None:
         """
-        If set de labels of samples considering a main_column and optionally 
-            additional columns
+        By employing this method, you can dynamically set the 'Label' column 
+        based on the unique values in the 'Sample' column or by concatenating
+        values from multiple columns, ensuring uniqueness.
+        
+        It sets the column 'Label' based on specific conditions. The behavior
+        depends on the value of the 'unique_row' parameter.
+        When 'unique_row' is set to True, the 'Label' column is assigned using
+        the suffix parameter and a number begining by fisrt_id parameter
+        On the other hand, when 'unique_row' is set to False, the 'Label'
+        column is determined by concatenating the values from multiple columns.
+        These columns are specified in the 'cols' list and their join must have
+        unique values.
+
         Parameters
         ----------
         df : data read from data file
-        unique_row_id. If True, each row will have a unique identifiers;
-            else each row with the same value in columns Sample will have the
-            the same identifier
+        unique_row_id. If True, each row will have a unique identifier;
+        else each unique row in cols_for_label will have the a unique
+        identifier
+        first_id. First id
         suffix. Suffix to de added to row identifier
+        cols_for_label. List of columns in df
+        separator. A separator in joined columns in cols_for_label
         """
-        if unique_row_id:
-            series = pd.Series(range(first_id, first_id+len(df)))
+        def one_label_per_row(first_id: int, len_df: int, suffix: str):
+            series = pd.Series(range(first_id, first_id+len_df))
             series = series.astype(str)
             if len(suffix) > 0:
                 series = suffix + series
-            df['Label'] = series
-            return
+            df['Label'] = series        
         
-        samples =  df['Sample'].unique()
-        for i, s1 in enumerate(samples):
-            df.loc[df['Sample'] == s1, 'Label'] = suffix + str(first_id + i) 
-
+        if not unique_row_id and not cols_for_label:
+            unique_row_id = True
+            myLogging.append('cols_for_label not provided, ' +\
+                             'unique_row_id is set to True')
+        
+        if unique_row_id:
+            one_label_per_row(first_id, len(df), suffix)
+        else:
+            for col in cols_for_label:
+                if col not in df.columns:
+                    myLogging.append(f'Column {col} not in df')
+                    one_label_per_row(first_id, len(df), suffix)
+                    break
+                    
+                if col == cols_for_label[0]:
+                    df['Label'] = df[col].astype(str)
+                else:
+                    df['Label'] += separator + df[col].astype(str)        
+                    
+            if df['Sample'].count() != df['Label'].drop_duplicates().count():
+                one_label_per_row(first_id, len(df), suffix)
+                myLogging.append('cols_for_label have not unique values')            
+        
 
     @staticmethod
-    def color_names(ncolors: int=1000) -> None:
-        colors = [(k, v) for k, v in mcolors.TABLEAU_COLORS.items()]
-        mc = len(colors)
-        if ncolors >= mc:
-            ncolors = mc
-        elif ncolors < 0:
-            ncolors = 1
+    def color_names(df: pd.DataFrame) -> None:
+        if 'Color' not in df.columns:
+            raise ValueError('Column Color must exists')
+        colors = [(v, k) for k, v in mcolors.TABLEAU_COLORS.items()]
+        present_colors = df[['Color']].drop_duplicates()
+        for cv in present_colors:
+            #TODO           
+            
+
         return colors[0: ncolors] 
 
         
