@@ -27,7 +27,7 @@ class GWChemPlot():
     _required_analysis_name = ('Sample',)
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
-    _default_color = 'black'
+    _default_color = 'blue'
     _required_ions_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
     _optional_ions_names = ('CO3', 'NO3')
     _default_marker = 'o'
@@ -53,15 +53,12 @@ class GWChemPlot():
         if unit not in ['mg/L', 'meq/L']:
            raise ValueError('units must be mg/L or meq/L')
 
-        self.check_column_names(df)
+        if not GWChemPlot.are_data_ok(df):
+            raise ValueError('Correct the data in the data file.')
+            
         df = df.dropna(subset = GWChemPlot._required_ions_names)
-        
-        GWChemPlot._set_colors(df)
-        
-        opt_ions_considered = []
-        for c in GWChemPlot._optional_ions_names:
-            if c in df.columns:
-                pass
+        if len(df):
+            raise ValueError('There are not valid data, review the data file')
         
         self._data: pd.DataFrame = df.copy()
         self._unit: str = unit
@@ -105,8 +102,11 @@ class GWChemPlot():
 
     @data.setter
     def data(self, new_df: pd.DataFrame) -> None:
-        self.check_column_names(new_df)
+        if not GWChemPlot.data_are_ok(new_df):
+            raise ValueError('Correct the new data')
         new_df = new_df.dropna()
+        if len(new_df):
+            raise ValueError('There are any data')
         self._data = new_df.copy()
 
 
@@ -120,43 +120,83 @@ class GWChemPlot():
         return self._dpi
 
 
-    def check_column_names(self, df: pd.DataFrame) -> None:
+    @staticmethod 
+    def columns_not_in_df(df: pd.DataFrame, col_names: [str]) -> [str]:
+        missing = [c1 for c1 in col_names if c1 not in df.columns]
+        if missing:
+            a = ','.join(missing)
+            msg = f'The data file does not contain the following mandatory columns {a}'
+            myLogging.append(msg)
+        return missing
+
+
+    @staticmethod
+    def are_data_ok(df: pd.DataFrame) -> bool:
         """
         Checks:
             1. df has the required column names
             2. The required columns have the required types
+            3. If optional columns are presente they have the required types
         Raises
         ------
         ValueError
-            When the required columns or their types are not met  
+        Throws an exception when columns are missing or their types are not 
+        correct  
         """
+        def check_column_stypes(df: pd.DataFrame, col_names: [str],
+                                dtype: str) -> [str]:
+            other_dtype = [f'{col1}: {df[col1].dtype}' for col1 in col_names \
+                           if df[col1].dtype != dtype]
+            if other_dtype:
+                a = ','.join(other_dtype)
+                msg = f'Columns {a} must be of dtype {dtype}'
+                myLogging.append(msg)
+            return other_dtype     
         
-        missing = [c1 for c1 in GWChemPlot._required_graph_names \
-                  if c1 not in df.columns]
-        if len(missing) > 0:
-            a = ','.join(missing)
-            msg = f'The data file lacks the required columns {a}'
-            myLogging.append(msg)
-            raise ValueError(msg)
+        
+        result = True
+        if 'Sample' not in df.columns:
+            result = False
+            myLogging.append('Column Sample is required')
+        else:
+            try:
+                df['Sample'].astype('string')            
+            except ValueError as e:
+                if result: result = False
+                myLogging.append(f'Column Sample: {e.args[0]}')
+                
+        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_graph_names):
+            if result: result = False
 
-        not_f64 = [c1 for c1 in GWChemPlot._required_graph_names \
-                   if df[c1].dtype != np.float64]
-        if len(not_f64) > 0:
-            a = ','.join(not_f64)
-            msg = f'These ions in data file must be float64 {a}'
-            myLogging.append(msg)
-            raise ValueError(msg)
+        try:
+            df['Size'] = df['Size'].astype('UInt32')
+        except ValueError as e:
+            if result: result = False
+            myLogging.append(f'Column Size: {e.args[0]}')        
 
-        missing = [c1 for c1 in GWChemPlot._required_ions_names \
-                  if c1 not in df.columns]
-        if len(missing) > 0:
-            a = ','.join(missing)
-            msg = f'The data file lacks the required columns {a}'
-            myLogging.append(msg)
-            raise ValueError(msg)
+        try:
+            df['Alpha'] = df['Alpha'].astype('Float32')
+        except ValueError as e:
+            if result: result = False
+            myLogging.append(f'Column Alpha: {e.args[0]}')                
 
-        df['Sample'] = df['Sample'].astype('string') 
-        df['Label'] = df['Label'].astype('string')
+        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_ions_names):
+            if result: result = False
+
+        if GWChemPlot.check_column_stypes(df, GWChemPlot._required_ions_names,
+                                          'float64'):
+           if result: result = False 
+        
+        opt_col = [f'{c1}: {df[c1].dtype}' for c1 in \
+                   GWChemPlot.optional_ion_names if c1 in df.columns and \
+                       df[c1].dtype != 'Float64']
+        if opt_col:
+            if result: result = False
+            a = ','.join(opt_col)
+            msg = f'Optional columns {a} must be of dtype Float64'
+            myLogging.append(msg)            
+        
+        return result
 
 
     @staticmethod
@@ -165,35 +205,49 @@ class GWChemPlot():
                    separator: str= '-') -> None:
         """
         By employing this method, you can dynamically set the 'Label' column 
-        based on the unique values in the 'Sample' column or by concatenating
-        values from multiple columns, ensuring uniqueness.
+        with unique or not unique values for drawing samples in the graphs.
         
         It sets the column 'Label' based on specific conditions. The behavior
         depends on the value of the 'unique_row' parameter.
         When 'unique_row' is set to True, the 'Label' column is assigned using
-        the suffix parameter and a number begining by fisrt_id parameter
+        the suffix parameter and a number begining by first_id parameter
         On the other hand, when 'unique_row' is set to False, the 'Label'
-        column is determined by concatenating the values from multiple columns.
-        These columns are specified in the 'cols' list and their join must have
-        unique values.
+        column is determined by concatenating the values from one or 
+        multiple columns. These columns are specified in the 'cols_for_label'
+        list.
 
         Parameters
         ----------
         df : data read from data file
-        unique_row_id. If True, each row will have a unique identifier;
-        else each unique row in cols_for_label will have the a unique
-        identifier
-        first_id. First id
-        suffix. Suffix to de added to row identifier
+        unique_row_id. If True, each row will have a unique Label identifier;
+            else multiple samples could have the same Label 
+        first_id. When unique_row_id is True, an automatic numbering of each
+            Sample is assigned begining by First id
+        suffix. When unique_row_id is True, a Suffix can be added
         cols_for_label. List of columns in df
         separator. A separator in joined columns in cols_for_label
         """
-        def one_label_per_row(first_id: int, len_df: int, suffix: str):
-            series = pd.Series(range(first_id, first_id+len_df))
-            series = series.astype(str)
-            if len(suffix) > 0:
-                series = suffix + series
-            df['Label'] = series        
+        def one_label_per_row(df: pd.DataFrame, first_id: int, suffix: str):
+            if df['Sample'].count() != df['Sample'].drop_duplicates().count():
+                sample_id_is_unique = False
+            else:
+                sample_id_is_unique = True
+                
+            if not sample_id_is_unique and suffix.lower() == 'sample':
+                myLogging.append('Sample is not unique, so suffix can ' + \
+                                 'not be equal to Sample, suffix is set ' +\
+                                 'to ""')
+                suffix = '' 
+            
+            if suffix.lower() == 'sample':
+                df['Label'] = df['Sample']
+            else:
+                series = pd.Series(range(first_id, first_id+len(df)))
+                series = series.astype(str)
+                if len(suffix) > 0:
+                    series = suffix + series
+                df['Label'] = series        
+        
         
         if not unique_row_id and not cols_for_label:
             unique_row_id = True
@@ -201,12 +255,12 @@ class GWChemPlot():
                              'unique_row_id is set to True')
         
         if unique_row_id:
-            one_label_per_row(first_id, len(df), suffix)
+            one_label_per_row(df, first_id, suffix)
         else:
             for col in cols_for_label:
                 if col not in df.columns:
                     myLogging.append(f'Column {col} not in df')
-                    one_label_per_row(first_id, len(df), suffix)
+                    one_label_per_row(df, first_id, suffix)
                     break
                     
                 if col == cols_for_label[0]:
@@ -215,53 +269,57 @@ class GWChemPlot():
                     df['Label'] += separator + df[col].astype(str)        
                     
             if df['Sample'].count() != df['Label'].drop_duplicates().count():
-                one_label_per_row(first_id, len(df), suffix)
+                one_label_per_row(df, first_id, suffix)
                 myLogging.append('cols_for_label have not unique values')            
         
-
+        
+    @staticmethod
+    def get_valid_color_names() -> ():
+        return [k[4:] for k in mcolors.TABLEAU_COLORS]
+            
+            
     @staticmethod
     def color_names(df: pd.DataFrame) -> None:
         if 'Color' not in df.columns:
             raise ValueError('Column Color must exists')
-        colors = [(v, k) for k, v in mcolors.TABLEAU_COLORS.items()]
+        colors = dict([(v, k) for k, v in mcolors.TABLEAU_COLORS.items()])
         present_colors = df[['Color']].drop_duplicates()
-        for cv in present_colors:
-            #TODO           
-            
-
-        return colors[0: ncolors] 
+        return [(color1, colors[color1]) for color1 in present_colors \
+                if color1 in colors]
 
         
     @staticmethod
     def set_colors(df: pd.DataFrame, single_color: bool = False, 
-                   selected_color: str = 'black') -> None:
+                   selected_color: str = 'blue') -> None:
         """
         If set de Color column in df
         Parameters
         ----------
         df : data read from data file
         single_color. All rows in df have the same color
-        selected_color. If single_color is True, fill column Color with
+        selected_color. If single_color is True, fills column Color with
             selected_color
         """
+        if 'Label' not in df.columns and not single_color:
+            single_color = True
+            myLogging.append('single_color is False but column Label ' +\
+                             'is not present; single_color is set to True')
+        
+        valid_colors = GWChemPlot.get_valid_color_names()
         if single_color:
-            kcolors = [k[4:] for k in mcolors.TABLEAU_COLORS]
-            if selected_color not in kcolors:
+            if selected_color not in valid_colors:
                 selected_color = GWChemPlot._default_color
-            df['Color'] = selected_color   
-            return
-
-        if 'Label' not in df.columns:
-            raise ValueError('Column Label must exists')
-            
-        labels =  df['Label'].unique()
-        colors = [v for v in mcolors.TABLEAU_COLORS.values()]
-        icolor = -1
-        for lab in labels:
-            icolor += 1
-            if icolor == len(colors):
-                icolor = 0 
-            df.loc[df['Label'] == lab, 'Color'] = colors[icolor]
+                myLogging.append('selected_color no tiene un contenido ' +\
+                                 'válido y se le asigna un valor por defecto')
+            df['Color'] = selected_color
+        else:
+            labels =  df['Label'].unique()
+            icolor = -1
+            for lab in labels:
+                icolor += 1
+                if icolor == len(valid_colors):
+                    icolor = 0 
+                df.loc[df['Label'] == lab, 'Color'] = valid_colors[icolor]
 
         
     @staticmethod
