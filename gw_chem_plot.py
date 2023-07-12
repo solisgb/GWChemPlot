@@ -28,8 +28,8 @@ class GWChemPlot():
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
-    _required_ions_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
-    _optional_ions_names = ('CO3', 'NO3')
+    _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
+    _optional_ion_names = ('CO3', 'NO3')
     _default_marker = 'o'
 
     
@@ -72,12 +72,12 @@ class GWChemPlot():
 
     @staticmethod
     def required_ion_names():
-        return GWChemPlot._required_ions_names
+        return GWChemPlot._required_ion_names
 
 
     @staticmethod
     def optional_ion_names():
-        return GWChemPlot._optional_ions_names
+        return GWChemPlot._optional_ion_names
 
 
     @staticmethod
@@ -143,64 +143,68 @@ class GWChemPlot():
         Throws an exception when columns are missing or their types are not 
         correct  
         """
-        def check_column_stypes(df: pd.DataFrame, col_names: [str],
-                                dtype: str) -> [str]:
-            other_dtype = [f'{col1}: {df[col1].dtype}' for col1 in col_names \
-                           if df[col1].dtype != dtype]
-            if other_dtype:
-                a = ','.join(other_dtype)
-                msg = f'Columns {a} must be of dtype {dtype}'
-                myLogging.append(msg)
-            return other_dtype     
+        def match_types(df: pd.DataFrame, col_names: [str],
+                        dtypes: [str]) -> bool:
+            """
+            For each element in col_names, checks that is of type dtypes; if
+            not, try to change its type to dtypes
+
+            Parameters
+            ----------
+            df. Data
+            col_names. Column names 
+            dtypes : str or [str]; if is of type str, a [str] is formed
+                with all elements equal to dtypes.
+            Returns
+            -------
+            True if OK
+            """
+            
+            if isinstance(dtypes, str):
+                dtypes = [dtypes for i in range(0, len(col_names))]
+                
+            columns_in_df = df.columns.tolist()
+            result = True
+            for col1, dtype in zip(col_names, dtypes):
+                if col1 in columns_in_df:
+                    if df[col1].dtype != dtype:
+                        try:
+                            df[col1].astype(dtype)
+                        except ValueError as e:
+                            myLogging.append(f'Column {col1}: {e.args[0]}')
+                            if result:
+                                result = False
+
+            return result
         
         
         result = True
         if 'Sample' not in df.columns:
             result = False
             myLogging.append('Column Sample is required')
-        else:
-            try:
-                df['Sample'].astype('string')            
-            except ValueError as e:
-                if result: result = False
-                myLogging.append(f'Column Sample: {e.args[0]}')
                 
         if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_graph_names):
             if result: result = False
 
-        try:
-            df['Size'] = df['Size'].astype('UInt32')
-        except ValueError as e:
-            if result: result = False
-            myLogging.append(f'Column Size: {e.args[0]}')        
-
-        try:
-            df['Alpha'] = df['Alpha'].astype('Float32')
-        except ValueError as e:
-            if result: result = False
-            myLogging.append(f'Column Alpha: {e.args[0]}')                
-
-        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_ions_names):
+        if not match_types(df, ['Sample', 'Size', 'Alpha'],
+                           ['string', 'UInt32', 'Float32']):
             if result: result = False
 
-        if GWChemPlot.check_column_stypes(df, GWChemPlot._required_ions_names,
-                                          'float64'):
-           if result: result = False 
+        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_ion_names):
+            if result: result = False
+
+        if not match_types(df, GWChemPlot._required_ion_names, 'Float64'):
+            if result: result = False
         
-        opt_col = [f'{c1}: {df[c1].dtype}' for c1 in \
-                   GWChemPlot.optional_ion_names if c1 in df.columns and \
-                       df[c1].dtype != 'Float64']
-        if opt_col:
+        opt_col = [c1 for c1 in GWChemPlot._optional_ion_names]
+        if not match_types(df, opt_col, 'Float64'):
             if result: result = False
-            a = ','.join(opt_col)
-            msg = f'Optional columns {a} must be of dtype Float64'
-            myLogging.append(msg)            
         
         return result
 
 
     @staticmethod
-    def set_labels(df: pd.DataFrame, unique_row_id: bool, first_id: int = 1,
+    def set_labels(df: pd.DataFrame, autonumbering: bool, first_id: int = 1,
                    suffix: str = '', cols_for_label: [str] = [],
                    separator: str= '-') -> None:
         """
@@ -221,63 +225,79 @@ class GWChemPlot():
         df : data read from data file
         unique_row_id. If True, each row will have a unique Label identifier;
             else multiple samples could have the same Label 
-        first_id. When unique_row_id is True, an automatic numbering of each
-            Sample is assigned begining by First id
-        suffix. When unique_row_id is True, a Suffix can be added
+        autonumbering. When is True, an automatic number for each
+            Sample is assigned begining by first_number
+        suffix. When autonumbering is True, a suffix can be added
         cols_for_label. List of columns in df
         separator. A separator in joined columns in cols_for_label
         """
-        def one_label_per_row(df: pd.DataFrame, first_id: int, suffix: str):
-            if df['Sample'].count() != df['Sample'].drop_duplicates().count():
-                sample_id_is_unique = False
-            else:
-                sample_id_is_unique = True
-                
-            if not sample_id_is_unique and suffix.lower() == 'sample':
-                myLogging.append('Sample is not unique, so suffix can ' + \
-                                 'not be equal to Sample, suffix is set ' +\
-                                 'to ""')
-                suffix = '' 
-            
-            if suffix.lower() == 'sample':
-                df['Label'] = df['Sample']
-            else:
-                series = pd.Series(range(first_id, first_id+len(df)))
-                series = series.astype(str)
-                if len(suffix) > 0:
-                    series = suffix + series
-                df['Label'] = series        
+        def autonumbering_set(df: pd.DataFrame, first_id: int, suffix: str):
+            series = pd.Series(range(first_id, first_id+len(df)))
+            series = series.astype(str)
+            if len(suffix) > 0:
+                series = suffix + series
+            df['Label'] = series                
         
         
-        if not unique_row_id and not cols_for_label:
-            unique_row_id = True
-            myLogging.append('cols_for_label not provided, ' +\
-                             'unique_row_id is set to True')
+        if not autonumbering and not cols_for_label:
+            autonumbering = True
+            myLogging.append('cols_for_label must be provided, ' +\
+                             'autonumbering is set to True')
         
-        if unique_row_id:
-            one_label_per_row(df, first_id, suffix)
+        if autonumbering:
+            autonumbering_set(df, first_id, suffix)
         else:
-            for col in cols_for_label:
-                if col not in df.columns:
-                    myLogging.append(f'Column {col} not in df')
-                    one_label_per_row(df, first_id, suffix)
-                    break
-                    
-                if col == cols_for_label[0]:
-                    df['Label'] = df[col].astype(str)
+            present_cols = []
+            for col1 in cols_for_label:
+                if col1 in df.columns:
+                    present_cols.append(col1)
                 else:
-                    df['Label'] += separator + df[col].astype(str)        
+                    myLogging.append(f'Column {col1} not in df')
+
+            if len(present_cols) != len(cols_for_label):
+                myLogging.append('cols_for_label has not valid names. ' +\
+                                 'autonumbering is set to True')
+                autonumbering_set(df, first_id, suffix)
+            else:
+                if col1 == cols_for_label[0]:
+                    label = df[col1].astype(str)
+                else:
+                    label += separator + df[col1].astype(str) 
                     
-            if df['Sample'].count() != df['Label'].drop_duplicates().count():
-                one_label_per_row(df, first_id, suffix)
-                myLogging.append('cols_for_label have not unique values')            
+                if suffix:
+                    df['Label'] = suffix + label
+                else:
+                    df['Label'] = label
+                    
+            n = df['Label'].drop_duplicates().count()
+            myLogging.append(f'{n:d} labels has been assigned')            
         
         
     @staticmethod
-    def get_valid_color_names() -> ():
-        return [k[4:] for k in mcolors.TABLEAU_COLORS]
+    def color_names_get(table_colors: str='tableau', hex_code: bool=False) -> [(str, str)]:
+        if table_colors not in ('base', 'css4', 'tableau'):
+            table_colors = 'tableau'
+            myLogging.append('table_colors not in (base, css4, tableau)' +\
+                             ', its value is changed to tableau')
+
+        if table_colors.lower() == 'base':
+            colors = mcolors.BASE_COLORS
+        elif table_colors.lower() == 'css4':
+            colors = mcolors.CSS4_COLORS
+        elif table_colors.lower() == 'tableau':
+            colors = mcolors.TABLEAU_COLORS
+        else:
+            colors = mcolors.BASE_COLORS
+
+        if hex_code:
+            if table_colors.lower() == 'base':
+                return [(k, mcolors.to_hex(v)) for k, v in colors.items()]
+            else:
+                return [(k, v) for k, v in colors.items()]
+        else:
+            return [k for k in colors]
             
-            
+        
     @staticmethod
     def color_names(df: pd.DataFrame) -> None:
         if 'Color' not in df.columns:
@@ -290,7 +310,7 @@ class GWChemPlot():
         
     @staticmethod
     def set_colors(df: pd.DataFrame, single_color: bool = False, 
-                   selected_color: str = 'blue') -> None:
+                   selected_color: str = 'blue', color_table: str='tableau') -> None:
         """
         If set de Color column in df
         Parameters
@@ -304,8 +324,9 @@ class GWChemPlot():
             single_color = True
             myLogging.append('single_color is False but column Label ' +\
                              'is not present; single_color is set to True')
+
+#TODO
         
-        valid_colors = GWChemPlot.get_valid_color_names()
         if single_color:
             if selected_color not in valid_colors:
                 selected_color = GWChemPlot._default_color
