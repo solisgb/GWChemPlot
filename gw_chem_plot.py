@@ -8,7 +8,6 @@ fork of WQChartPy https://github.com/jyangfsu/WQChartPy
 """
 import numpy as np
 import matplotlib.colors as mcolors
-from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
@@ -28,9 +27,11 @@ class GWChemPlot():
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
+    _defaultmarker = 'o'
+    _filled_markers = (['o', '.', 'v', '^', '<', '>', '8', 's', 'p', '*',
+                        'h', 'H', 'D', 'd', 'P', 'X'])
     _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
     _optional_ion_names = ('CO3', 'NO3')
-    _default_marker = 'o'
 
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
@@ -271,6 +272,14 @@ class GWChemPlot():
                     
             n = df['Label'].drop_duplicates().count()
             myLogging.append(f'{n:d} labels has been assigned')            
+
+
+    @staticmethod
+    def get_labels(df: pd.DataFrame):
+        if 'Label' not in df.columns:
+            return []
+        else:
+            return df['Label'].drop_duplicates()
         
         
     @staticmethod
@@ -283,21 +292,21 @@ class GWChemPlot():
 
         
     @staticmethod
-    def color_names_get(table_colors: str='tableau', hex_code: bool=False) -> []:
-        if not GWChemPlot.table_colors_exists(table_colors):
-            table_colors = 'tableau'
+    def color_names_get(color_table: str='tableau', hex_code: bool=False) -> []:
+        if not GWChemPlot.color_table_exists(color_table):
+            color_table = 'tableau'
 
-        if table_colors.lower() == 'base':
+        if color_table.lower() == 'base':
             colors = mcolors.BASE_COLORS
-        elif table_colors.lower() == 'css4':
+        elif color_table.lower() == 'css4':
             colors = mcolors.CSS4_COLORS
-        elif table_colors.lower() == 'tableau':
+        elif color_table.lower() == 'tableau':
             colors = mcolors.TABLEAU_COLORS
         else:
             colors = mcolors.BASE_COLORS
 
         if hex_code:
-            if table_colors.lower() == 'base':
+            if color_table.lower() == 'base':
                 return [(k, mcolors.to_hex(v)) for k, v in colors.items()]
             else:
                 return [(k, v) for k, v in colors.items()]
@@ -308,7 +317,8 @@ class GWChemPlot():
     @staticmethod
     def color_labels_set(df: pd.DataFrame, color_table: str='tableau', 
                          single_color: bool=True, 
-                         cycle_colors: bool = True) -> bool:
+                         cycle_colors: bool=False,
+                         my_colors: [str]=[]) -> bool:
         """
         Sets th column Color if column Label exists in df
         Parameters
@@ -320,26 +330,36 @@ class GWChemPlot():
         cycle_colors. When df has more labels that colors in color_table
             if cycle_colors is True it cycles colors in color table, or
             generates extra colors if cycle_colors is  False
+        my_colors. List of color's names
         """
-        def fill_rgb_array(c):
-          """
-          Fills the whole array having each row a valid RGB color 
-          representation
-          """
-          r = np.random.random(c.shape[0])
-          g = np.random.random(c.shape[0])
-          b = np.random.random(c.shape[0])
-          c[:, 0] = r
-          c[:, 1] = g
-          c[:, 2] = b
-          return c                            
+        def fill_rgb_array(n:int):
+            """
+            Fills the whole array having each row a valid RGB color 
+            representation
+            """
+            c = np.empty((n, 3))
+            for i in range(n):
+                c[:, i] = np.random.random(n)
+            hex_code = [mcolors.to_hex(c[i,:]) for i in range(n)]
+            return hex_code                           
         
         if 'Label' not in df.columns:
             myLogging.append('Label column must exists to set colors')
             return False
         
-        if not GWChemPlot.table_colors_exists(color_table):
-            table_colors = 'tableau'
+        if not GWChemPlot.color_table_exists(color_table):
+            color_table = 'tableau'
+        
+        colors = GWChemPlot.color_names_get(color_table)
+        if my_colors:
+            my_colors_ok = True
+            for myc1 in my_colors:
+                if myc1 not in colors:
+                    my_colors_ok = False
+                    break
+            if my_colors_ok:
+                colors = [c1 for c1 in my_colors]
+                cycle_colors = False
 
         labels =  df['Label'].unique()
         nlabels = len(labels)
@@ -348,9 +368,8 @@ class GWChemPlot():
             if single_color:
                 df['Color'] = GWChemPlot._default_color
             else:
-                df['Color'] = GWChemPlot.color_names_get(table_colors)[0]
+                df['Color'] = colors[0]
         else:
-            colors = GWChemPlot.color_names_get(table_colors)
             ncolors = len(colors)
             if nlabels <= ncolors:
                 for i, lab in enumerate(labels):
@@ -370,50 +389,38 @@ class GWChemPlot():
                     for i in range(0, ncolors):
                         df.loc[df['Label'] == labels[i], 'Color'] = colors[i]
                     m = nlabels - ncolors
-                    c = np.empty((m, 3), dtype='float32')
-                    c = fill_rgb_array(c)
+                    c = fill_rgb_array(m)
                     for j in range(m):
-                        df.loc[df['Label'] == labels[i+j+1], 'Color'] = colors[i]
+                        df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
         return True
         
     
     @staticmethod
-    def set_markers(df: pd.DataFrame, single_marker: bool=True,
-                    selected_marker: str = 'o') -> None:
+    def set_markers(df: pd.DataFrame, single_marker: bool=True) -> bool:
+        
+        def set_sigle_marker(df: pd.DataFrame):
+            df['Marker'] = GWChemPlot._defaultmarker
+
+        if single_marker:
+            set_sigle_marker(df)
+            return True
 
         for a in ('Label', 'Color'):
             if a not in df.columns:
-                raise ValueError(f'Column {a} must exists')
+                myLogging.append(f'Column {a} do not exists, unique marker is assigned')
+                set_sigle_marker(df)
+                return True
         
-        markers = [k for k in Line2D.markers if k not in ('None', 'none', ' ',
-                                                         '')]
-
-        if single_marker:
-            _count = df[['Label', 'Color']].value_counts()
-            max_count = _count.max()
-            if max_count > 1:
-                single_marker = False
-                myLogging.append('The number of pairs [Label, Color] >1, ' + 
-                                 'marker can not be unique', False)
-
-        if single_marker:
-            if selected_marker not in markers:
-                selected_marker = GWChemPlot._default_marker
-            df['Marker'] = selected_marker
-            return
-#TODO
+        markers = GWChemPlot._filled_markers
         unique_pairs = df[['Label', 'Color']].drop_duplicates()
-        # for index, row in unique_pairs.iterrows():
-        #     c0_value = row['c0']
-        #     c1_value = row['c1']
-        #     df.loc[(df['c0'] == c0_value) & (df['c1'] == c1_value), 'c2'] = index
-
-        
-        
-        
-
-
-
+        imarker = -1
+        for index, row in unique_pairs.iterrows():
+            imarker += 1
+            if imarker == len(markers):
+                imarker = 0  
+                myLogging.append('Number of pairs label, Color  > number of markers; markers are recycled')
+            mask = (df['Label'] == row['Label']) & (df['Color'] == row['Color'])
+            df.loc[mask, 'Marker'] = markers[imarker]
 
 
     def check_columns_are_present(self, cols: list[str]) -> bool:
