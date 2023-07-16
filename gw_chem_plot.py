@@ -8,6 +8,8 @@ fork of WQChartPy https://github.com/jyangfsu/WQChartPy
 """
 import numpy as np
 import matplotlib.colors as mcolors
+import matplotlib.markers as mmarkers
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
@@ -27,9 +29,7 @@ class GWChemPlot():
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
-    _defaultmarker = 'o'
-    _filled_markers = (['o', '.', 'v', '^', '<', '>', '8', 's', 'p', '*',
-                        'h', 'H', 'D', 'd', 'P', 'X'])
+    _default_marker_size = 20
     _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
     _optional_ion_names = ('CO3', 'NO3')
 
@@ -129,6 +129,13 @@ class GWChemPlot():
             msg = f'The data file does not contain the following mandatory columns {a}'
             myLogging.append(msg)
         return missing
+
+
+    @staticmethod
+    def unique_rows(df: pd.DataFrame, col_names: [str]):
+        if not GWChemPlot.columns_exists(df, col_names):
+            return []
+        return df[col_names].drop_duplicates()
 
 
     @staticmethod
@@ -393,54 +400,114 @@ class GWChemPlot():
                     for j in range(m):
                         df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
         return True
+
+
+    @staticmethod
+    def get_filled_markers(draw_markers:bool = False) -> [str]:
+        """ Get filled markers and optionally draws them """
+
+        def format_axes(ax):
+            ax.margins(0.2)
+            ax.set_axis_off()
+            ax.invert_yaxis()
         
+        
+        def split_list(a_list):
+            i_half = len(a_list) // 2
+            return a_list[:i_half], a_list[i_half:]
+        
+        if draw_markers:
+            text_style = dict(horizontalalignment='right', 
+                              verticalalignment='center',
+                              fontsize=12, fontfamily='monospace')
+            marker_style = dict(linestyle=':', color='0.8', markersize=10,
+                                markerfacecolor="tab:blue", 
+                                markeredgecolor="tab:blue")
+            
+            fig, axs = plt.subplots(ncols=2)
+            fig.suptitle('Filled markers', fontsize=14)
+            for ax, markers in zip(axs, split_list(Line2D.filled_markers)):
+                for y, marker in enumerate(markers):
+                    ax.text(-0.5, y, repr(marker), **text_style)
+                    ax.plot([y] * 3, marker=marker, **marker_style)
+                format_axes(ax) 
+        
+        return [m for m in mmarkers.MarkerStyle.filled_markers]
+
+
+    @staticmethod
+    def columns_exists(df: pd.DataFrame, col_names:[str]) -> bool:
+        absent = [c1 for c1 in col_names if c1 not in df.columns]
+        if len(absent) > 0:
+            a = ','.join(absent)
+            msg = f'df has not the columns {a}'
+            myLogging.append(msg)
+            return False
+        return True
+
     
     @staticmethod
-    def set_markers(df: pd.DataFrame, single_marker: bool=True) -> bool:
-        
-        def set_sigle_marker(df: pd.DataFrame):
-            df['Marker'] = GWChemPlot._defaultmarker
+    def set_markers(df: pd.DataFrame, single_marker: bool=True, 
+                    my_markers: [str] =[]) -> bool:
+        """
+        Sets column Marker in df
+        df : data
+        single_marker : all rows have same marker
+        my_markers : list of markers
+        """
+
+        markers = GWChemPlot.get_filled_markers()        
+        if my_markers:
+            absent = [mk1 for mk1 in my_markers if mk1 not in markers]
+            if len(absent) > 0:
+                a = ', '.join(absent)
+                myLogging.append(f'Markers {a} are not valid filled markers')
+                present_markers = [mk1 for mk1 in my_markers if mk1 in markers]
+                if len(present_markers) > 0:
+                    markers = present_markers 
+            else:
+                markers = my_markers
 
         if single_marker:
-            set_sigle_marker(df)
+            df['Marker'] = markers[0]
             return True
 
-        for a in ('Label', 'Color'):
-            if a not in df.columns:
-                myLogging.append(f'Column {a} do not exists, unique marker is assigned')
-                set_sigle_marker(df)
-                return True
+        if not GWChemPlot.columns_exists(df, ('Label', 'Color')):
+            df['Marker'] = markers[0]
+            return True
         
-        markers = GWChemPlot._filled_markers
         unique_pairs = df[['Label', 'Color']].drop_duplicates()
         imarker = -1
         for index, row in unique_pairs.iterrows():
             imarker += 1
             if imarker == len(markers):
                 imarker = 0  
-                myLogging.append('Number of pairs label, Color  > number of markers; markers are recycled')
+                myLogging.append('Number of pairs Label, Color > number of' +\
+                                 '  markers; markers are recycled')
             mask = (df['Label'] == row['Label']) & (df['Color'] == row['Color'])
             df.loc[mask, 'Marker'] = markers[imarker]
 
+    
+    @staticmethod
+    def set_markers_size(df: pd.DataFrame, unique_marker_size: bool=True, 
+                         marker_size: int = 20, 
+                         my_markers_sizes: {str:int}= {}) -> None:
+        
+        if marker_size<=0 or marker_size>30:
+            myLogging.append('Markers size has been changed')
+            marker_size = GWChemPlot._default_marker_size
+        
+        if unique_marker_size:
+            df['Size'] = marker_size
 
-    def check_columns_are_present(self, cols: list[str]) -> bool:
+
+    def check_columns_are_present(self, col_names: [str]) -> bool:
         """
         Determines if the column names in cols are present in self.data.
         If any column is not present throws an exception; 
         otherwise returns True
-
-        Parameters
-        ----------
-        cols : list
-            column names.
         """
-        absent = [c1 for c1 in cols if c1 not in self.data.columns]
-        if len(absent) > 0:
-            a = ','.join(absent)
-            msg = f'The data file lacks the columns {a}'
-            myLogging.append(msg)
-            raise ValueError(msg)
-        return True
+        return GWChemPlot.columns_exists(self.df, col_names)
 
 
     def required_columns_graph(self, graph_name: str) -> list:
