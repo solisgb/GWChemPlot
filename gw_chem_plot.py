@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
 import traceback
+from typing import Union
     
-from ions import Ions
 import littleLogging as myLogging
 
 
@@ -24,14 +24,21 @@ class GWChemPlot():
     Class to create Piper, Stiff and Schoeller diagrams to be saved as 
         image files.
     """
-
+    # anions ({key: [weight, charge]})
+    _anions = {'Cl': (35.453, -1), 'SO4': (96.0626, -2), 'CO3': (60.0089, -2),
+               'HCO3': (61.0168, -1), 'NO3': (62.0049, -1)}
+       
+    # cations
+    _cations = {'Ca': (40.078, 2), 'Mg': (24.305, 2), 'K': (39.0983, 1),
+                          'Na': (22.989769, 1)}
+    _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
+    _optional_ion_names = ('CO3', 'NO3')
+    
     _required_analysis_name = ('Sample',)
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
     _default_marker_size = 20
-    _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
-    _optional_ion_names = ('CO3', 'NO3')
 
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
@@ -48,11 +55,10 @@ class GWChemPlot():
         _data. Checked df
         _unit. Checked unit
         _dpi. Checked dpi 
-        _ions. Ions object
         _piper. Matlib parameter in plot_Piper method 
         """
         if unit not in ['mg/L', 'meq/L']:
-           raise ValueError('units must be mg/L or meq/L')
+           raise ValueError('Units must be mg/L or meq/L')
 
         if not GWChemPlot.are_data_ok(df):
             raise ValueError('Correct the data in the data file.')
@@ -64,7 +70,6 @@ class GWChemPlot():
         self._data: pd.DataFrame = df.copy()
         self._unit: str = unit
         self._dpi: int = dpi
-        self._ions: Ions = Ions()
         self._piper: dict = {'font.size': 9, 'axes.labelsize': 9,
                              'axes.labelweight': 'bold', 'axes.titlesize' : 9,
                              'xtick.labelsize': 9, 'ytick.labelsize': 9,
@@ -121,12 +126,74 @@ class GWChemPlot():
         return self._dpi
 
 
+    @staticmethod
+    def anions_names_get() -> [str]:
+        return GWChemPlot._anions.keys()
+    
+    @staticmethod
+    def cations_names_get() -> [str]:
+        return GWChemPlot._cations.keys()
+
+    @staticmethod
+    def ions_names_get() -> [str]:
+        return GWChemPlot._anions.keys() + GWChemPlot._cations.keys()
+    
+    
+    @staticmethod
+    def weight_get(ion_names: [str]=[]) -> pd.DataFrame:
+        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        iw = {key: value[0] for key, value in ions.items()} 
+        df = pd.DataFrame([iw], columns=iw.keys())        
+        if ion_names:
+            return df[ion_names]
+        else:
+            return df
+
+
+    @staticmethod
+    def charge_get(ion_names: [str]=[]) -> pd.DataFrame:
+        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        ich = {key: value[0] for key, value in ions.items()} 
+        df = pd.DataFrame([ich], columns=ich.keys())        
+        if ion_names:
+            return df[ion_names]
+        else:
+            return df
+
+
+    @staticmethod
+    def charge_weight_ratio_get(ion_names: [str]=[]) -> pd.DataFrame:
+        iw = GWChemPlot.weight_get(ion_names)
+        ich = GWChemPlot.charge_get(ion_names)
+        return np.abs(ich.div(iw.iloc[0]))
+
+
+    @staticmethod
+    def anions_in_df(df: pd.DataFrame) -> [str]:
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._anions.keys()]
+        return cols
+
+
+    @staticmethod
+    def cations_in_df(df: pd.DataFrame) -> [str]:
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._cations.keys()]
+        return cols
+
+
+    @staticmethod
+    def ions_in_df(df: pd.DataFrame) -> [str]:
+        c = GWChemPlot.cations_in_df()
+        a = GWChemPlot.anions_in_df()
+        return c + a
+
+
     @staticmethod 
     def columns_not_in_df(df: pd.DataFrame, col_names: [str]) -> [str]:
         missing = [c1 for c1 in col_names if c1 not in df.columns]
         if missing:
             a = ','.join(missing)
-            msg = f'The data file does not contain the following mandatory columns {a}'
+            msg = 'The data file does not contain the following required' +\
+                f' columns: {a}'
             myLogging.append(msg)
         return missing
 
@@ -249,36 +316,34 @@ class GWChemPlot():
         
         if not autonumbering and not cols_for_label:
             autonumbering = True
-            myLogging.append('cols_for_label must be provided, ' +\
-                             'autonumbering is set to True')
+            myLogging.append('autonumbering has been set to True')
         
         if autonumbering:
             autonumbering_set(df, first_id, suffix)
-        else:
-            present_cols = []
-            for col1 in cols_for_label:
-                if col1 in df.columns:
-                    present_cols.append(col1)
-                else:
-                    myLogging.append(f'Column {col1} not in df')
+            return True
 
-            if len(present_cols) != len(cols_for_label):
-                myLogging.append('cols_for_label has not valid names. ' +\
-                                 'autonumbering is set to True')
-                autonumbering_set(df, first_id, suffix)
-            else:
-                if col1 == cols_for_label[0]:
-                    label = df[col1].astype(str)
-                else:
-                    label += separator + df[col1].astype(str) 
-                    
-                if suffix:
-                    df['Label'] = suffix + label
-                else:
-                    df['Label'] = label
-                    
-            n = df['Label'].drop_duplicates().count()
-            myLogging.append(f'{n:d} labels has been assigned')            
+        present_cols = [col1 for col1 in cols_for_label if col1 in df.columns]
+        if len(present_cols) != len(cols_for_label):
+            invalid_cols = [col1 for col1 in cols_for_label \
+                            if col1 not in df.columns]
+            invalid_cols = ', '.join(invalid_cols)
+            myLogging.append('The following columns do not exists: '
+                             f'{invalid_cols}.\nLabels has been set using' 
+                             ' autonumbering')
+            autonumbering_set(df, 1, '')
+            return True
+
+        df['Label'] = suffix + df[cols_for_label[0]].astype(str)
+        for col1 in cols_for_label[1:]:
+            df['Label'] += separator + df[col1].astype(str)
+      
+        # if suffix:
+        #     df['Label'] = suffix + label
+        # else:
+        #     df['Label'] = label
+                
+        n = df['Label'].drop_duplicates().count()
+        myLogging.append(f'{n:d} labels has been assigned')            
 
 
     @staticmethod
@@ -349,6 +414,7 @@ class GWChemPlot():
                 c[:, i] = np.random.random(n)
             hex_code = [mcolors.to_hex(c[i,:]) for i in range(n)]
             return hex_code                           
+
         
         if 'Label' not in df.columns:
             myLogging.append('Label column must exists to set colors')
@@ -359,46 +425,42 @@ class GWChemPlot():
         
         colors = GWChemPlot.color_names_get(color_table)
         if my_colors:
-            my_colors_ok = True
-            for myc1 in my_colors:
-                if myc1 not in colors:
-                    my_colors_ok = False
-                    break
-            if my_colors_ok:
-                colors = [c1 for c1 in my_colors]
-                cycle_colors = False
+            valid_colors = [color1 for color1 in my_colors if color1 in colors]
+        else:
+            valid_colors = colors
+
+        if single_color:
+            if valid_colors:
+                df['Color'] = valid_colors[0]    
+            else:
+                df['Color'] = GWChemPlot._default_color
+            return True
 
         labels =  df['Label'].unique()
         nlabels = len(labels)
         
-        if len(labels) == 1:
-            if single_color:
-                df['Color'] = GWChemPlot._default_color
-            else:
-                df['Color'] = colors[0]
+        ncolors = len(valid_colors)
+        if nlabels <= ncolors:
+            for i, lab in enumerate(labels):
+                df.loc[df['Label'] == lab, 'Color'] = valid_colors[i]
         else:
-            ncolors = len(colors)
-            if nlabels <= ncolors:
-                for i, lab in enumerate(labels):
-                    df.loc[df['Label'] == lab, 'Color'] = colors[i]
+            myLogging.append('Number of labes > number of colors')
+            if cycle_colors:
+                myLogging.append('There are labels with the same color')
+                icolor = -1
+                for lab in labels:
+                    icolor += 1
+                    if icolor == ncolors:
+                        icolor = 0 
+                    df.loc[df['Label'] == lab, 'Color'] = valid_colors[icolor]
             else:
-                myLogging.append('Number of labes > number of colors')
-                if cycle_colors:
-                    myLogging.append('There are different labels with the same color')
-                    icolor = -1
-                    for lab in labels:
-                        icolor += 1
-                        if icolor == ncolors:
-                            icolor = 0 
-                        df.loc[df['Label'] == lab, 'Color'] = colors[icolor]
-                else:
-                    myLogging.append('Extra colors are generated randomly')
-                    for i in range(0, ncolors):
-                        df.loc[df['Label'] == labels[i], 'Color'] = colors[i]
-                    m = nlabels - ncolors
-                    c = fill_rgb_array(m)
-                    for j in range(m):
-                        df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
+                myLogging.append('Extra colors are generated randomly')
+                for i in range(0, ncolors):
+                    df.loc[df['Label'] == labels[i], 'Color'] = valid_colors[i]
+                m = nlabels - ncolors
+                c = fill_rgb_array(m)
+                for j in range(m):
+                    df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
         return True
 
 
@@ -551,12 +613,12 @@ class GWChemPlot():
         col_names : list of ion's names 
         """
         if not ion_names:
-            ion_names = self._ions.ions_in_df(self.df)
+            ion_names = GWChemPlot.ions_in_df(self.df)
   
         if self.unit == 'meq/L':
             return self.df[ion_names]
         else:
-            x = self._ions.charge_weight_ratio_get(ion_names)
+            x = GWChemPlot.charge_weight_ratio_get(ion_names)
             return self.df[ion_names].mul(x.iloc[0])
 
 
@@ -565,8 +627,8 @@ class GWChemPlot():
         Get the charge balance error (cbe). The returned DataFrame has
         the columns: 'Sample' and 'cbe'
         """
-        anions = self._ions.anions_in_df(self.df)
-        cations = self._ions.cations_in_df(self.df)
+        anions = GWChemPlot.anions_in_df(self.df)
+        cations = GWChemPlot.cations_in_df(self.df)
         if self.unit == 'mg/L': 
             anions_meqL = self.meqL_get(anions)
             cations_meqL = self.meqL_get(cations)
@@ -761,7 +823,7 @@ class GWChemPlot():
             Ion dominant classification
             Piper Plot
         """
-        col_names = self._ions.anions_in_df(self.df)
+        col_names = GWChemPlot.anions_in_df(self.df)
         meqL = self.meqL_get(col_names)
         xsum = meqL.sum(axis=1)
         if 'CO3' not in col_names:
@@ -785,7 +847,7 @@ class GWChemPlot():
             Ion dominant classification
             Piper Plot
         """
-        col_names = self._ions.cations_in_df(self.df)
+        col_names = GWChemPlot.cations_in_df(self.df)
         meqL = self.meqL_get(col_names)
         xsum = meqL.sum(axis=1)
         x = meqL.Na + meqL.K 

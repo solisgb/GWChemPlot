@@ -28,13 +28,12 @@ if __name__ == "__main__":
     try:
         
         ipt = Inputs()
-        
-        if ipt.file_data_is_csv():
-            df = pd.read_csv(ipt.data_path)
-        else:
-            df = pd.read_excel(ipt.data_path, sheet_name=ipt.sheet_number)
-        
-        gwp = GWChemPlot(df)
+
+        fdata = './data/data_template.xlsx'        
+        data = pd.read_excel(fdata, sheet_name=2)
+        cols_for_label = ['Toma']
+        GWChemPlot.set_labels(data, autonumbering=False, suffix='L', 
+                              cols_for_label=cols_for_label)
         
         # resp = input("Check charge balance error (y/n) ?: ")
         # if resp.lower() in ('y', 'yes', '1'):
@@ -52,9 +51,9 @@ if __name__ == "__main__":
         #     df.to_excel(ipt.fo_ion_dominant_classif, index=False,
         #                 float_format='%.3f')
 
-        resp = input("Generate Piper diagram (y/n) ?: ")
-        if resp.lower() in ('y', 'yes', '1'):
-            gwp.plot_Piper2(ipt.fig_Piper)
+        # resp = input("Generate Piper diagram (y/n) ?: ")
+        # if resp.lower() in ('y', 'yes', '1'):
+        #     gwp.plot_Piper2(ipt.fig_Piper)
             
         # resp = input("Generate Shoeller figure (y/n) ?: ")
         # if resp.lower() in ('y', 'yes', '1'):
