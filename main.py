@@ -26,14 +26,13 @@ if __name__ == "__main__":
     startTime = time()
 
     try:
-        
-        ipt = Inputs()
 
         fdata = './data/data_template.xlsx'        
         data = pd.read_excel(fdata, sheet_name=2)
         cols_for_label = ['Toma']
-        GWChemPlot.set_labels(data, autonumbering=False, suffix='L', 
+        GWChemPlot.set_labels(data, autonumbering=False, 
                               cols_for_label=cols_for_label)
+        GWChemPlot.color_labels_set(data)
         
         # resp = input("Check charge balance error (y/n) ?: ")
         # if resp.lower() in ('y', 'yes', '1'):

@@ -5,6 +5,16 @@ Created on Tue Jun  6 11:55:25 2023
 @author: solis
 
 fork of WQChartPy https://github.com/jyangfsu/WQChartPy
+
+Inside the class GWChemPlot, functions are organized in the following sections:
+    Section 1. Getters and setters
+    Section 2. Functions to acces to class constants
+    Section 3. Functions to manage data before instantiate the class
+    Section 4. Function to set columns related with graphs symbols (Label,
+               Color, Marker)
+    Section 5. Class methods that don't do grahs
+    Section 6. Class methods that do grahs or are used in them
+    
 """
 import numpy as np
 import matplotlib.colors as mcolors
@@ -76,25 +86,7 @@ class GWChemPlot():
                              'legend.fontsize' : 9, 'figure.titlesize': 10}
 
 
-    @staticmethod
-    def required_ion_names():
-        return GWChemPlot._required_ion_names
-
-
-    @staticmethod
-    def optional_ion_names():
-        return GWChemPlot._optional_ion_names
-
-
-    @staticmethod
-    def analysis_name():
-        return GWChemPlot._required_analysis_name
-
-
-    @staticmethod
-    def required_graph_names():
-        return GWChemPlot._required_graph_names
-
+    """ Section 1. Getters and setters """
 
     @property
     def df(self):
@@ -126,6 +118,8 @@ class GWChemPlot():
         return self._dpi
 
 
+    """ Section 2. Functions to acces to class constants"""
+
     @staticmethod
     def anions_names_get() -> [str]:
         return GWChemPlot._anions.keys()
@@ -138,73 +132,29 @@ class GWChemPlot():
     def ions_names_get() -> [str]:
         return GWChemPlot._anions.keys() + GWChemPlot._cations.keys()
     
+
+    @staticmethod
+    def analysis_name():
+        return GWChemPlot._required_analysis_name
+
     
     @staticmethod
-    def weight_get(ion_names: [str]=[]) -> pd.DataFrame:
-        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
-        iw = {key: value[0] for key, value in ions.items()} 
-        df = pd.DataFrame([iw], columns=iw.keys())        
-        if ion_names:
-            return df[ion_names]
-        else:
-            return df
+    def required_ion_names():
+        return GWChemPlot._required_ion_names
 
 
     @staticmethod
-    def charge_get(ion_names: [str]=[]) -> pd.DataFrame:
-        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
-        ich = {key: value[0] for key, value in ions.items()} 
-        df = pd.DataFrame([ich], columns=ich.keys())        
-        if ion_names:
-            return df[ion_names]
-        else:
-            return df
+    def optional_ion_names():
+        return GWChemPlot._optional_ion_names
 
 
     @staticmethod
-    def charge_weight_ratio_get(ion_names: [str]=[]) -> pd.DataFrame:
-        iw = GWChemPlot.weight_get(ion_names)
-        ich = GWChemPlot.charge_get(ion_names)
-        return np.abs(ich.div(iw.iloc[0]))
+    def required_graph_names():
+        return GWChemPlot._required_graph_names
 
-
-    @staticmethod
-    def anions_in_df(df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._anions.keys()]
-        return cols
-
-
-    @staticmethod
-    def cations_in_df(df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._cations.keys()]
-        return cols
-
-
-    @staticmethod
-    def ions_in_df(df: pd.DataFrame) -> [str]:
-        c = GWChemPlot.cations_in_df()
-        a = GWChemPlot.anions_in_df()
-        return c + a
-
-
-    @staticmethod 
-    def columns_not_in_df(df: pd.DataFrame, col_names: [str]) -> [str]:
-        missing = [c1 for c1 in col_names if c1 not in df.columns]
-        if missing:
-            a = ','.join(missing)
-            msg = 'The data file does not contain the following required' +\
-                f' columns: {a}'
-            myLogging.append(msg)
-        return missing
-
-
-    @staticmethod
-    def unique_rows(df: pd.DataFrame, col_names: [str]):
-        if not GWChemPlot.columns_exists(df, col_names):
-            return []
-        return df[col_names].drop_duplicates()
-
-
+    
+    """ Section 3. Functions to manage data before instantiate the class"""
+    
     @staticmethod
     def are_data_ok(df: pd.DataFrame) -> bool:
         """
@@ -252,7 +202,6 @@ class GWChemPlot():
 
             return result
         
-        
         result = True
         if 'Sample' not in df.columns:
             result = False
@@ -275,7 +224,98 @@ class GWChemPlot():
         if not match_types(df, opt_col, 'Float64'):
             if result: result = False
         
-        return result
+        return result    
+
+
+    @staticmethod
+    def anions_in_df(df: pd.DataFrame) -> [str]:
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._anions.keys()]
+        return cols
+
+
+    @staticmethod
+    def cations_in_df(df: pd.DataFrame) -> [str]:
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._cations.keys()]
+        return cols
+
+
+    @staticmethod
+    def ions_in_df(df: pd.DataFrame) -> [str]:
+        c = GWChemPlot.cations_in_df()
+        a = GWChemPlot.anions_in_df()
+        return c + a
+
+
+    @staticmethod
+    def charge_get(ion_names: [str]=[]) -> pd.DataFrame:
+        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        ich = {key: value[0] for key, value in ions.items()} 
+        df = pd.DataFrame([ich], columns=ich.keys())        
+        if ion_names:
+            return df[ion_names]
+        else:
+            return df
+
+
+    @staticmethod
+    def charge_weight_ratio_get(ion_names: [str]=[]) -> pd.DataFrame:
+        iw = GWChemPlot.weight_get(ion_names)
+        ich = GWChemPlot.charge_get(ion_names)
+        return np.abs(ich.div(iw.iloc[0]))
+
+
+    @staticmethod
+    def columns_exists(df: pd.DataFrame, col_names:[str]) -> bool:
+        absent = [c1 for c1 in col_names if c1 not in df.columns]
+        if len(absent) > 0:
+            a = ','.join(absent)
+            msg = f'df has not the columns {a}'
+            myLogging.append(msg)
+            return False
+        return True
+
+
+    @staticmethod 
+    def columns_not_in_df(df: pd.DataFrame, col_names: [str]) -> [str]:
+        missing = [c1 for c1 in col_names if c1 not in df.columns]
+        if missing:
+            a = ','.join(missing)
+            msg = 'The data file does not contain the following required' +\
+                f' columns: {a}'
+            myLogging.append(msg)
+        return missing
+
+
+    @staticmethod
+    def unique_rows(df: pd.DataFrame, col_names: [str]):
+        if not GWChemPlot.columns_exists(df, col_names):
+            return []
+        return df[col_names].drop_duplicates()
+
+    
+    @staticmethod
+    def weight_get(ion_names: [str]=[]) -> pd.DataFrame:
+        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        iw = {key: value[0] for key, value in ions.items()} 
+        df = pd.DataFrame([iw], columns=iw.keys())        
+        if ion_names:
+            return df[ion_names]
+        else:
+            return df
+
+
+    """
+    Section 4. Function to set columns related with graphs symbols
+    
+    Section 4.1. Labels
+    """
+
+    @staticmethod
+    def get_labels(df: pd.DataFrame):
+        if 'Label' not in df.columns:
+            return []
+        else:
+            return df['Label'].drop_duplicates()
 
 
     @staticmethod
@@ -344,21 +384,16 @@ class GWChemPlot():
                 
         n = df['Label'].drop_duplicates().count()
         myLogging.append(f'{n:d} labels has been assigned')            
-
-
-    @staticmethod
-    def get_labels(df: pd.DataFrame):
-        if 'Label' not in df.columns:
-            return []
-        else:
-            return df['Label'].drop_duplicates()
         
+
+    """ Section 4.2. Column Color """
+
         
     @staticmethod
     def color_table_exists(color_table: str) -> bool:
         if color_table not in ('base', 'css4', 'tableau'):
-            myLogging.append('color_table not in (base, css4, tableau)' +\
-                             ', its value is changed to tableau')
+            myLogging.append("color_table not in ('base', 'css4', 'tableau')"+\
+                             ", its value is changed to 'tableau'")
             return False
         return True
 
@@ -385,10 +420,58 @@ class GWChemPlot():
         else:
             return [k for k in colors]
 
-        
+
     @staticmethod
     def color_labels_set(df: pd.DataFrame, color_table: str='tableau', 
-                         single_color: bool=True, 
+                         colormap:str='brg', 
+                         single_color: bool=False, 
+                         ) -> bool:
+        """
+        Sets th column Color if column Label exists in df
+        Parameters
+        ----------
+        df : data read from data file
+        color_table. Mathplotlib named colors list
+        colormap. Mathplotlib colormap 
+        single_color. You can specify a single color for all the labels. So
+            labels remain color indistinguishable
+        """
+        
+        if 'Label' not in df.columns:
+            myLogging.append('Label column must exists to set colors')
+            return False
+        
+        if not GWChemPlot.color_table_exists(color_table):
+            color_table = 'tableau'
+        
+        colors_t = GWChemPlot.color_names_get(color_table)
+        n_colors_t = len(colors_t)
+        if single_color:
+            df['Color'] = colors_t[0]    
+            return True
+
+        colorsmaps = [cmap1 for cmap1 in plt.colormaps()]
+        if colormap not in colorsmaps:
+            colormap = 'brg'
+        cmap = plt.get_cmap(colormap)
+        n_cmaps = cmap.N
+
+        labels =  df['Label'].unique()
+        nlabels = len(labels)
+
+        if nlabels <= n_colors_t:
+           for i, lab in enumerate(labels):
+               df.loc[df['Label'] == lab, 'Color'] = colors_t[i]
+        else:
+            pass
+
+
+        return True
+
+        
+    @staticmethod
+    def color_labels_set0(df: pd.DataFrame, color_table: str='tableau', 
+                         single_color: bool=False, 
                          cycle_colors: bool=False,
                          my_colors: [str]=[]) -> bool:
         """
@@ -463,6 +546,7 @@ class GWChemPlot():
                     df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
         return True
 
+    """ Section 4.3. Column Marker """
 
     @staticmethod
     def get_filled_markers(draw_markers:bool = False) -> [str]:
@@ -495,17 +579,6 @@ class GWChemPlot():
                 format_axes(ax) 
         
         return [m for m in mmarkers.MarkerStyle.filled_markers]
-
-
-    @staticmethod
-    def columns_exists(df: pd.DataFrame, col_names:[str]) -> bool:
-        absent = [c1 for c1 in col_names if c1 not in df.columns]
-        if len(absent) > 0:
-            a = ','.join(absent)
-            msg = f'df has not the columns {a}'
-            myLogging.append(msg)
-            return False
-        return True
 
     
     @staticmethod
@@ -562,6 +635,33 @@ class GWChemPlot():
         if unique_marker_size:
             df['Size'] = marker_size
 
+    """ Section 5. Class methods that don't do grahs """
+
+    def cbe(self) -> pd.DataFrame:
+        """
+        Get the charge balance error (cbe). The returned DataFrame has
+        the columns: 'Sample' and 'cbe'
+        """
+        anions = GWChemPlot.anions_in_df(self.df)
+        cations = GWChemPlot.cations_in_df(self.df)
+        if self.unit == 'mg/L': 
+            anions_meqL = self.meqL_get(anions)
+            cations_meqL = self.meqL_get(cations)
+        else:
+            anions_meqL = self.df[anions]
+            cations_meqL = self.df[cations]
+
+        sum_anions = np.sum(anions_meqL.values, axis=1).reshape(-1, 1)
+        sum_cations = np.sum(cations_meqL.values, axis=1).reshape(-1, 1)
+
+        x = 100. * (sum_cations - sum_anions) / (sum_cations + sum_anions)
+        
+        samples = self.df[['Sample']].copy()
+        
+        cbe = pd.concat([samples, anions_meqL, cations_meqL], axis=1)
+        cbe['cbe'] = x 
+        return cbe
+
 
     def check_columns_are_present(self, col_names: [str]) -> bool:
         """
@@ -570,6 +670,24 @@ class GWChemPlot():
         otherwise returns True
         """
         return GWChemPlot.columns_exists(self.df, col_names)
+
+
+    def meqL_get(self, ion_names: [str]=[]) -> pd.DataFrame:
+        """
+        Calculate the meq/L of the ions in ion_names.
+
+        Parameters
+        ----------
+        col_names : list of ion's names 
+        """
+        if not ion_names:
+            ion_names = GWChemPlot.ions_in_df(self.df)
+  
+        if self.unit == 'meq/L':
+            return self.df[ion_names]
+        else:
+            x = GWChemPlot.charge_weight_ratio_get(ion_names)
+            return self.df[ion_names].mul(x.iloc[0])
 
 
     def required_columns_graph(self, graph_name: str) -> list:
@@ -603,50 +721,7 @@ class GWChemPlot():
         self.check_columns_are_present(cols)
         return cols
 
-
-    def meqL_get(self, ion_names: [str]=[]) -> pd.DataFrame:
-        """
-        Calculate the meq/L of the ions in ion_names.
-
-        Parameters
-        ----------
-        col_names : list of ion's names 
-        """
-        if not ion_names:
-            ion_names = GWChemPlot.ions_in_df(self.df)
-  
-        if self.unit == 'meq/L':
-            return self.df[ion_names]
-        else:
-            x = GWChemPlot.charge_weight_ratio_get(ion_names)
-            return self.df[ion_names].mul(x.iloc[0])
-
-
-    def cbe(self) -> pd.DataFrame:
-        """
-        Get the charge balance error (cbe). The returned DataFrame has
-        the columns: 'Sample' and 'cbe'
-        """
-        anions = GWChemPlot.anions_in_df(self.df)
-        cations = GWChemPlot.cations_in_df(self.df)
-        if self.unit == 'mg/L': 
-            anions_meqL = self.meqL_get(anions)
-            cations_meqL = self.meqL_get(cations)
-        else:
-            anions_meqL = self.df[anions]
-            cations_meqL = self.df[cations]
-
-        sum_anions = np.sum(anions_meqL.values, axis=1).reshape(-1, 1)
-        sum_cations = np.sum(cations_meqL.values, axis=1).reshape(-1, 1)
-
-        x = 100. * (sum_cations - sum_anions) / (sum_cations + sum_anions)
-        
-        samples = self.df[['Sample']].copy()
-        
-        cbe = pd.concat([samples, anions_meqL, cations_meqL], axis=1)
-        cbe['cbe'] = x 
-        return cbe
-
+    """ Section 6. Class methods that do grahs or are used in them """
 
     def plot_Shoeller(self, figname:str) -> None:
         """
