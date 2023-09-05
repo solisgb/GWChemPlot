@@ -1,9 +1,9 @@
-# GWChemPlot
-Groundwater chemical graphs
+# Module gw_chem_plot
+gw_chem_plot stands for Groundwater chemical plots
 
-This project is a fork of WQChartPy, https://github.com/jyangfsu/WQChartPy.
+Python module to make some groundwater hydrochemical graphs. At the moment the graphs are: Schoeller, Piper and Stiff.
 
-The graphs included are: Schoeller, Stiff, Piper
+The functions that build the graphs have been adapted with slight modifications from the WQChartPy package https://github.com/jyangfsu/WQChartPy.
 
 There are 2 methods to create the Piper diagram: Piper and Piper2. If the water analysis contains $NO_3^{-}$, the Piper2 method represents it added together with $Cl{-}$.
 
