@@ -70,8 +70,8 @@ class GWChemPlot():
         if unit not in ['mg/L', 'meq/L']:
            raise ValueError('Units must be mg/L or meq/L')
 
-        if not GWChemPlot.are_data_ok(df):
-            raise ValueError('Correct the data in the data file.')
+        if not GWChemPlot.check_dataframe_column_types(df):
+            raise ValueError('You must modify the input DataFrame')
             
         df = df.dropna(subset = GWChemPlot._required_ions_names)
         if len(df):
@@ -156,17 +156,15 @@ class GWChemPlot():
     """ Section 3. Functions to manage data before instantiate the class"""
     
     @staticmethod
-    def are_data_ok(df: pd.DataFrame) -> bool:
+    def check_dataframe_column_types(df: pd.DataFrame) -> bool:
         """
         Checks:
             1. df has the required column names
             2. The required columns have the required types
             3. If optional columns are presente they have the required types
-        Raises
+        Returns
         ------
-        ValueError
-        Throws an exception when columns are missing or their types are not 
-        correct  
+        True if df pass all the tests correctly
         """
         def match_types(df: pd.DataFrame, col_names: [str],
                         dtypes: [str]) -> bool:
@@ -204,8 +202,12 @@ class GWChemPlot():
         
         result = True
         if 'Sample' not in df.columns:
-            result = False
-            myLogging.append('Column Sample is required')
+            GWChemPlot.create_column_sample(df)
+        else:
+            if df['Sample'].nunique() != len(df):
+                myLogging.append('There are repeated values in the column',
+                                 ' Sample')
+                result = False
                 
         if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_graph_names):
             if result: result = False
@@ -307,8 +309,25 @@ class GWChemPlot():
     """
     Section 4. Function to set columns related with graphs symbols
     
-    Section 4.1. Labels
+    Section 4.0. Sample
     """
+    @staticmethod
+    def create_column_sample\
+        (df: pd.DataFrame, first_id: int = 1, suffix: str = 'S',
+         separator: str= '-', insert_at_beginning:bool=True) -> bool:
+        if 'Sample' not in df.columns:
+            sequence = [suffix + separator + str(i) for i in \
+                        range(first_id, len(df) + first_id)]
+            if insert_at_beginning:
+                df.insert(0, 'Sample', sequence)
+            else:
+                df['Sample'] = sequence
+            myLogging.append('Column Sample has been automatically created')
+            return True
+        else:
+            return False
+
+    """ Section 4.1. Labels """
 
     @staticmethod
     def get_labels(df: pd.DataFrame):
@@ -352,7 +371,9 @@ class GWChemPlot():
             if len(suffix) > 0:
                 series = suffix + series
             df['Label'] = series                
-        
+
+        if 'Sample' not in df.columns:
+            GWChemPlot.create_column_sample(df)        
         
         if not autonumbering and not cols_for_label:
             autonumbering = True
@@ -376,11 +397,6 @@ class GWChemPlot():
         df['Label'] = suffix + df[cols_for_label[0]].astype(str)
         for col1 in cols_for_label[1:]:
             df['Label'] += separator + df[col1].astype(str)
-      
-        # if suffix:
-        #     df['Label'] = suffix + label
-        # else:
-        #     df['Label'] = label
                 
         n = df['Label'].drop_duplicates().count()
         myLogging.append(f'{n:d} labels has been assigned')            
@@ -422,7 +438,8 @@ class GWChemPlot():
 
 
     @staticmethod
-    def color_labels_set(df: pd.DataFrame, color_table: str='tableau', 
+    def color_labels_set(df: pd.DataFrame, method:str = 'default', 
+                         color_table:str='tableau', 
                          colormap:str='brg', 
                          single_color: bool=False, 
                          ) -> bool:
@@ -431,15 +448,37 @@ class GWChemPlot():
         Parameters
         ----------
         df : data read from data file
-        color_table. Mathplotlib named colors list
-        colormap. Mathplotlib colormap 
+        method: Categorical. How colors are assigned.
+            1.  'default': if nlabels <= colors in color table, colors in color
+                table are used: else nlabels colors in colormap
+            2.  'color_table' 
+            3.  'colormap'
+        color_table. Mathplotlib named colors list: 'tableau' (recommended),
+            'css4' or 'base'.
+        colormap. Mathplotlib colormap name
         single_color. You can specify a single color for all the labels. So
             labels remain color indistinguishable
         """
+        def get_colors_in_colormap(cmap_name:str, ncolors:int):
+           cmap = plt.get_cmap(cmap_name)
+           values = np.linspace(0, 1, ncolors)
+           colors = [cmap(value) for value in values]
+           hex_colors = [mcolors.to_hex(color, keep_alpha=True) \
+                         for color in colors]
+           return hex_colors
+
+               
+        VALID_METHODS = ('default', 'color_table', 'colormap')
         
         if 'Label' not in df.columns:
             myLogging.append('Label column must exists to set colors')
             return False
+
+        if method not in VALID_METHODS:
+            vm = ', '.join(VALID_METHODS)
+            myLogging.append(f'Method {method} must be one between: {vm}. ', 
+                             'Default has been assigned')
+            method = 'default'
         
         if not GWChemPlot.color_table_exists(color_table):
             color_table = 'tableau'
@@ -450,21 +489,26 @@ class GWChemPlot():
             df['Color'] = colors_t[0]    
             return True
 
-        colorsmaps = [cmap1 for cmap1 in plt.colormaps()]
-        if colormap not in colorsmaps:
-            colormap = 'brg'
-        cmap = plt.get_cmap(colormap)
-        n_cmaps = cmap.N
+        cmaps_names = [cmn1 for cmn1 in plt.colormaps()]
+        cmaps_names.sort()
+        if colormap not in cmaps_names:
+            colormap = 'brg'        
+        listed_colormap = plt.get_cmap(colormap)
+        n_colors_cm = listed_colormap.N
 
         labels =  df['Label'].unique()
         nlabels = len(labels)
 
         if nlabels <= n_colors_t:
-           for i, lab in enumerate(labels):
-               df.loc[df['Label'] == lab, 'Color'] = colors_t[i]
+            if method in ('default', 'color_table'):
+                colors_to_apply = colors_t
+            else:
+                colors_to_apply = get_colors_in_colormap(colormap, nlabels)
         else:
-            pass
-
+            colors_to_apply = get_colors_in_colormap(colormap, nlabels)
+            
+        for i, lab in enumerate(labels):
+            df.loc[df['Label'] == lab, 'Color'] = colors_to_apply[i]            
 
         return True
 

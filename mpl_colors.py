@@ -20,11 +20,11 @@ class MPL_colors():
 
 
     def get_colormaps_names(self):
-        cmaps = [cmap_id for cmap_id in plt.colormaps()]
-        cmaps.sort()
-        for cm1 in cmaps:
-            col_map = plt.get_cmap(cm1)
-            print(f"{cm1}: {col_map.N} colors")
+        cmaps_names = [cmn1 for cmn1 in plt.colormaps()]
+        cmaps_names.sort()
+        for cmn1 in cmaps_names:
+            listed_colormap = plt.get_cmap(cmn1)
+            print(f"{cmn1}: {listed_colormap.N} colors")
 
 
     def display_colormaps(self, cmap:str=''):
@@ -45,7 +45,7 @@ class MPL_colors():
                 plot_colorMaps(cmap_id)
 
 
-    def display_colors_in_colormap(self, cmap_name:str='viridis', ncolors:int=10):
+    def display_colors_in_colormap(self, cmap_name:str='brg', ncolors:int=10):
         # Get the colormap
         colormap = plt.get_cmap(cmap_name)
         
@@ -64,7 +64,6 @@ class MPL_colors():
         plt.show()
 
 
-
 if __name__ == "__main__":
 
     startTime = time()
@@ -72,7 +71,7 @@ if __name__ == "__main__":
     try:
 
         mplc = MPL_colors()
-        mplc.display_colors_in_colormap() 
+        mplc.display_colors_in_colormap(ncolors=3) 
 
     except Exception:
         msg = traceback.format_exc()
