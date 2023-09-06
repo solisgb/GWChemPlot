@@ -340,7 +340,7 @@ class GWChemPlot():
     @staticmethod
     def set_labels(df: pd.DataFrame, autonumbering: bool, first_id: int = 1,
                    suffix: str = '', cols_for_label: [str] = [],
-                   separator: str= '-') -> None:
+                   separator: str= '-') -> bool:
         """
         By employing this method, you can dynamically set the 'Label' column 
         with unique or not unique values for drawing samples in the graphs.

@@ -16,6 +16,7 @@ try:
     from inputs import Inputs
     import littleLogging as myLogging
     from gw_chem_plot import GWChemPlot
+    
 except ImportError as e:
     print( getattr(e, 'message', repr(e)))
     raise SystemExit(0)
