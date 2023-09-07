@@ -4,6 +4,7 @@ Created on Mon Sep  4 11:03:50 2023
 
 @author: solis
 """
+import matplotlib.colors as mcolors
 from matplotlib import colorbar
 import matplotlib.pyplot as plt
 from math import fmod
@@ -73,22 +74,28 @@ class MplColors():
     
     
     @staticmethod
-    def display_colors_in_colormap(cmap_name:str='hsv', ncolors:int=10) ->None:
+    def display_colors_in_colormap(cmap_name:str='hsv', ncolors:int=10, 
+                                   correlative:bool=False) ->None:
         cmaps_names_set = [cmn1 for cmn1 in plt.colormaps()]
         if cmap_name not in cmaps_names_set:
-            logging.append(f'{cmap_name} is not a valid colormap name')
-        
+            logging.append(f'{cmap_name} is not a valid colormap name. ' 
+                           'It continues with hsv instead')
+            cmap_name = 'hsv'
         colormap = plt.get_cmap(cmap_name)
-        
-        # Create a range of numerical values (between 0 and 1)
-        values = np.linspace(0, 1, ncolors)  
+        print(f'Colormap {cmap_name}: number of colors {colormap.N}. '
+              f'{ncolors} colors are displayed')
+        if correlative and ncolors<= colormap.N:
+            values = [i for i in range(ncolors)]
+        else:
+            values = np.linspace(0, 1, ncolors)  
         
         # Map the numerical values to colors in the colormap
         colors = [colormap(value) for value in values]
         
-        # Print the RGB color codes
+        print('Color codes. Formats: RGBA, hex. RGBA')
         for color in colors:
-            print(f"RGB Color Code: {color[:3]}")
+            hex_code = mcolors.to_hex(color, keep_alpha=True)
+            print(f'{color}, {hex_code}')
         
         # Plot a bar chart using the colors
         plt.bar(range(len(colors)), [1] * len(colors), color=colors)
