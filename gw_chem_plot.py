@@ -24,9 +24,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pathlib
 import traceback
-from typing import Union
+from typing import Union, List, Tuple
     
-import littleLogging as myLogging
+import littleLogging as logging
 
 
 class GWChemPlot():
@@ -49,6 +49,9 @@ class GWChemPlot():
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
     _default_marker_size = 20
+    
+    _StrList = List[str]
+    _StrTuple = Tuple[str]
 
     
     def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
@@ -86,7 +89,7 @@ class GWChemPlot():
                              'legend.fontsize' : 9, 'figure.titlesize': 10}
 
 
-    """ Section 1. Getters and setters """
+    """ =========== Section 1. Getters and setters ======================= """
 
     @property
     def df(self):
@@ -118,7 +121,7 @@ class GWChemPlot():
         return self._dpi
 
 
-    """ Section 2. Functions to acces to class constants"""
+    """========= Section 2. Functions to acces to class constants ========"""
 
     @staticmethod
     def anions_names_get() -> [str]:
@@ -153,7 +156,9 @@ class GWChemPlot():
         return GWChemPlot._required_graph_names
 
     
-    """ Section 3. Functions to manage data before instantiate the class"""
+    """
+    ==== Section 3. Functions to manage data before instantiate the class ====
+    """
     
     @staticmethod
     def check_dataframe_column_types(df: pd.DataFrame) -> bool:
@@ -194,7 +199,7 @@ class GWChemPlot():
                         try:
                             df[col1].astype(dtype)
                         except ValueError as e:
-                            myLogging.append(f'Column {col1}: {e.args[0]}')
+                            logging.append(f'Column {col1}: {e.args[0]}')
                             if result:
                                 result = False
 
@@ -205,7 +210,7 @@ class GWChemPlot():
             GWChemPlot.create_column_sample(df)
         else:
             if df['Sample'].nunique() != len(df):
-                myLogging.append('There are repeated values in the column',
+                logging.append('There are repeated values in the column',
                                  ' Sample')
                 result = False
                 
@@ -272,7 +277,7 @@ class GWChemPlot():
         if len(absent) > 0:
             a = ','.join(absent)
             msg = f'df has not the columns {a}'
-            myLogging.append(msg)
+            logging.append(msg)
             return False
         return True
 
@@ -284,7 +289,7 @@ class GWChemPlot():
             a = ','.join(missing)
             msg = 'The data file does not contain the following required' +\
                 f' columns: {a}'
-            myLogging.append(msg)
+            logging.append(msg)
         return missing
 
 
@@ -307,9 +312,9 @@ class GWChemPlot():
 
 
     """
-    Section 4. Function to set columns related with graphs symbols
+    ===== Section 4. Function to set columns related with graphs symbols =====
     
-    Section 4.0. Sample
+    ======================= Section 4.0. Sample ==============================
     """
     @staticmethod
     def create_column_sample\
@@ -322,12 +327,12 @@ class GWChemPlot():
                 df.insert(0, 'Sample', sequence)
             else:
                 df['Sample'] = sequence
-            myLogging.append('Column Sample has been automatically created')
+            logging.append('Column Sample has been automatically created')
             return True
         else:
             return False
 
-    """ Section 4.1. Labels """
+    """ =================== Section 4.1. Labels ==========================="""
 
     @staticmethod
     def get_labels(df: pd.DataFrame):
@@ -377,7 +382,7 @@ class GWChemPlot():
         
         if not autonumbering and not cols_for_label:
             autonumbering = True
-            myLogging.append('autonumbering has been set to True')
+            logging.append('autonumbering has been set to True')
         
         if autonumbering:
             autonumbering_set(df, first_id, suffix)
@@ -388,7 +393,7 @@ class GWChemPlot():
             invalid_cols = [col1 for col1 in cols_for_label \
                             if col1 not in df.columns]
             invalid_cols = ', '.join(invalid_cols)
-            myLogging.append('The following columns do not exists: '
+            logging.append('The following columns do not exists: '
                              f'{invalid_cols}.\nLabels has been set using' 
                              ' autonumbering')
             autonumbering_set(df, 1, '')
@@ -399,198 +404,99 @@ class GWChemPlot():
             df['Label'] += separator + df[col1].astype(str)
                 
         n = df['Label'].drop_duplicates().count()
-        myLogging.append(f'{n:d} labels has been assigned')            
+        logging.append(f'{n:d} labels has been assigned')            
         
-
-    """ Section 4.2. Column Color """
-
-        
-    @staticmethod
-    def color_table_exists(color_table: str) -> bool:
-        if color_table not in ('base', 'css4', 'tableau'):
-            myLogging.append("color_table not in ('base', 'css4', 'tableau')"+\
-                             ", its value is changed to 'tableau'")
-            return False
-        return True
-
-        
-    @staticmethod
-    def color_names_get(color_table: str='tableau', hex_code: bool=False) -> []:
-        if not GWChemPlot.color_table_exists(color_table):
-            color_table = 'tableau'
-
-        if color_table.lower() == 'base':
-            colors = mcolors.BASE_COLORS
-        elif color_table.lower() == 'css4':
-            colors = mcolors.CSS4_COLORS
-        elif color_table.lower() == 'tableau':
-            colors = mcolors.TABLEAU_COLORS
-        else:
-            colors = mcolors.BASE_COLORS
-
-        if hex_code:
-            if color_table.lower() == 'base':
-                return [(k, mcolors.to_hex(v)) for k, v in colors.items()]
-            else:
-                return [(k, v) for k, v in colors.items()]
-        else:
-            return [k for k in colors]
-
+    """ ================== Section 4.2. Column Color ====================="""
 
     @staticmethod
-    def color_labels_set(df: pd.DataFrame, method:str = 'default', 
-                         color_table:str='tableau', 
-                         colormap:str='brg', 
-                         single_color: bool=False, 
-                         ) -> bool:
+    def color_labels_set_automatic\
+        (df: pd.DataFrame, cmap_name:str='') -> bool:
         """
-        Sets th column Color if column Label exists in df
+        Sets th column Color if column Label exists in df using colormaps
+        If cmap_name is not provided, CMAP_NAMES tuple is used
         Parameters
         ----------
         df : data read from data file
-        method: Categorical. How colors are assigned.
-            1.  'default': if nlabels <= colors in color table, colors in color
-                table are used: else nlabels colors in colormap
-            2.  'color_table' 
-            3.  'colormap'
-        color_table. Mathplotlib named colors list: 'tableau' (recommended),
-            'css4' or 'base'.
-        colormap. Mathplotlib colormap name
-        single_color. You can specify a single color for all the labels. So
-            labels remain color indistinguishable
+        cmap_name (str). Optional, color map name
         """
-        def get_colors_in_colormap(cmap_name:str, ncolors:int):
-           cmap = plt.get_cmap(cmap_name)
-           values = np.linspace(0, 1, ncolors)
-           colors = [cmap(value) for value in values]
-           hex_colors = [mcolors.to_hex(color, keep_alpha=True) \
-                         for color in colors]
-           return hex_colors
-
-               
-        VALID_METHODS = ('default', 'color_table', 'colormap')
         
         if 'Label' not in df.columns:
-            myLogging.append('Label column must exists to set colors')
+            logging.append('Label column must exists to set colors')
             return False
-
-        if method not in VALID_METHODS:
-            vm = ', '.join(VALID_METHODS)
-            myLogging.append(f'Method {method} must be one between: {vm}. ', 
-                             'Default has been assigned')
-            method = 'default'
         
-        if not GWChemPlot.color_table_exists(color_table):
-            color_table = 'tableau'
+        CMAP_NAMES = ('tab20', 'hsv')
         
-        colors_t = GWChemPlot.color_names_get(color_table)
-        n_colors_t = len(colors_t)
-        if single_color:
-            df['Color'] = colors_t[0]    
-            return True
-
-        cmaps_names = [cmn1 for cmn1 in plt.colormaps()]
-        cmaps_names.sort()
-        if colormap not in cmaps_names:
-            colormap = 'brg'        
-        listed_colormap = plt.get_cmap(colormap)
-        n_colors_cm = listed_colormap.N
-
         labels =  df['Label'].unique()
         nlabels = len(labels)
+        
+        if cmap_name:
+            cmaps_names_set = [cmn1 for cmn1 in plt.colormaps()]
+            if cmap_name not in cmaps_names_set:
+                logging.append(f'{cmap_name} is not a valid colormap name')
+                return False
+            cmap = plt.get_cmap(cmap_name)
+        else:                      
+            for cmn1 in CMAP_NAMES:
+                cmap = plt.get_cmap(cmn1)
+                if cmap.N <= nlabels:
+                    break
+       
+        values = np.linspace(0, 1, nlabels)  
+        colors = [cmap(value) for value in values]
+        hex_colors = [mcolors.to_hex(color, keep_alpha=True) \
+                      for color in colors]
 
-        if nlabels <= n_colors_t:
-            if method in ('default', 'color_table'):
-                colors_to_apply = colors_t
-            else:
-                colors_to_apply = get_colors_in_colormap(colormap, nlabels)
-        else:
-            colors_to_apply = get_colors_in_colormap(colormap, nlabels)
-            
-        for i, lab in enumerate(labels):
-            df.loc[df['Label'] == lab, 'Color'] = colors_to_apply[i]            
+        for lab, clr in zip(labels, hex_colors):
+            df.loc[df['Label'] == lab, 'Color'] = clr            
 
         return True
 
-        
+
     @staticmethod
-    def color_labels_set0(df: pd.DataFrame, color_table: str='tableau', 
-                         single_color: bool=False, 
-                         cycle_colors: bool=False,
-                         my_colors: [str]=[]) -> bool:
+    def color_labels_set_manual\
+        (df: pd.DataFrame, color_names:Union[_StrList, _StrTuple]=('black'))\
+            -> bool:
         """
-        Sets th column Color if column Label exists in df
+        Sets th column Color if column Label exists in df using colormaps
+        If cmap_name is not provided, CMAP_NAMES tuple is used
         Parameters
         ----------
         df : data read from data file
-        color_table. Mathplotlib table of colors
-        single_color. If there ara a single label and single_color is True
-            color is set to its default value
-        cycle_colors. When df has more labels that colors in color_table
-            if cycle_colors is True it cycles colors in color table, or
-            generates extra colors if cycle_colors is  False
-        my_colors. List of color's names
+        color_names. Valid matplotlib color names
         """
-        def fill_rgb_array(n:int):
-            """
-            Fills the whole array having each row a valid RGB color 
-            representation
-            """
-            c = np.empty((n, 3))
-            for i in range(n):
-                c[:, i] = np.random.random(n)
-            hex_code = [mcolors.to_hex(c[i,:]) for i in range(n)]
-            return hex_code                           
-
         
         if 'Label' not in df.columns:
-            myLogging.append('Label column must exists to set colors')
+            logging.append('Label column must exists to set colors')
+            return False
+
+        named_colors = mcolors.cnames
+        color_keys = list(named_colors.keys())
+        color_values = list(named_colors.values())
+        n = 0
+        for clrn1 in color_names:
+            if clrn1 not in color_keys:
+                logging.append(f'{clrn1} is not a valid color name')
+                n += 1
+        if n > 0:
             return False
         
-        if not GWChemPlot.color_table_exists(color_table):
-            color_table = 'tableau'
-        
-        colors = GWChemPlot.color_names_get(color_table)
-        if my_colors:
-            valid_colors = [color1 for color1 in my_colors if color1 in colors]
-        else:
-            valid_colors = colors
-
-        if single_color:
-            if valid_colors:
-                df['Color'] = valid_colors[0]    
-            else:
-                df['Color'] = GWChemPlot._default_color
-            return True
-
         labels =  df['Label'].unique()
         nlabels = len(labels)
-        
-        ncolors = len(valid_colors)
-        if nlabels <= ncolors:
-            for i, lab in enumerate(labels):
-                df.loc[df['Label'] == lab, 'Color'] = valid_colors[i]
-        else:
-            myLogging.append('Number of labes > number of colors')
-            if cycle_colors:
-                myLogging.append('There are labels with the same color')
-                icolor = -1
-                for lab in labels:
-                    icolor += 1
-                    if icolor == ncolors:
-                        icolor = 0 
-                    df.loc[df['Label'] == lab, 'Color'] = valid_colors[icolor]
-            else:
-                myLogging.append('Extra colors are generated randomly')
-                for i in range(0, ncolors):
-                    df.loc[df['Label'] == labels[i], 'Color'] = valid_colors[i]
-                m = nlabels - ncolors
-                c = fill_rgb_array(m)
-                for j in range(m):
-                    df.loc[df['Label'] == labels[i+j+1], 'Color'] = c[j]
+
+        icolor = -1
+        itimes = 0
+        for lab in labels:
+            icolor += 1
+            if icolor == nlabels:
+                icolor = 0 
+                itimes += 1
+            df.loc[df['Label'] == lab, 'Color'] = color_values[icolor]
+        if itimes > 0:
+            logging.append(f'Available colors have been recycled {itimes} '
+                           'times')
         return True
 
-    """ Section 4.3. Column Marker """
+    """ ================ Section 4.3. Column Marker  ====================="""
 
     @staticmethod
     def get_filled_markers(draw_markers:bool = False) -> [str]:
@@ -640,7 +546,7 @@ class GWChemPlot():
             absent = [mk1 for mk1 in my_markers if mk1 not in markers]
             if len(absent) > 0:
                 a = ', '.join(absent)
-                myLogging.append(f'Markers {a} are not valid filled markers')
+                logging.append(f'Markers {a} are not valid filled markers')
                 present_markers = [mk1 for mk1 in my_markers if mk1 in markers]
                 if len(present_markers) > 0:
                     markers = present_markers 
@@ -661,7 +567,7 @@ class GWChemPlot():
             imarker += 1
             if imarker == len(markers):
                 imarker = 0  
-                myLogging.append('Number of pairs Label, Color > number of' +\
+                logging.append('Number of pairs Label, Color > number of' +\
                                  '  markers; markers are recycled')
             mask = (df['Label'] == row['Label']) & (df['Color'] == row['Color'])
             df.loc[mask, 'Marker'] = markers[imarker]
@@ -673,7 +579,7 @@ class GWChemPlot():
                          my_markers_sizes: {str:int}= {}) -> None:
         
         if marker_size<=0 or marker_size>30:
-            myLogging.append('Markers size has been changed')
+            logging.append('Markers size has been changed')
             marker_size = GWChemPlot._default_marker_size
         
         if unique_marker_size:
@@ -759,7 +665,7 @@ class GWChemPlot():
             cols = ['Ca', 'Mg', 'Na', 'K', 'HCO3', 'CO3', 'Cl', 'SO4']
         else:
             msg = f'Graph name not supported: {graph_name}'
-            myLogging.append(msg)
+            logging.append(msg)
             raise ValueError (msg)
         
         self.check_columns_are_present(cols)
@@ -805,7 +711,7 @@ class GWChemPlot():
                         label=TmpLabel) 
             except Exception:
                 msg = traceback.format_exc()
-                myLogging.append(msg)
+                logging.append(msg)
                 
         # Background settings
         ax.set_xticks([1, 2, 3, 4, 5, 6, 7])
