@@ -48,7 +48,7 @@ class GWChemPlot():
     _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
     _default_color = 'blue'
-    _default_marker_size = 20
+    __MARKER_SIZE = {'min': 5, 'max': 40, 'default': 30}       
     
     _StrList = List[str]
     _StrTuple = Tuple[str]
@@ -409,14 +409,27 @@ class GWChemPlot():
     """ ================== Section 4.2. Column Color ====================="""
 
     @staticmethod
+    def check_alpha(alpha: float):
+        ALPHA = {'min':0., 'max':1.,'default':1}
+        alpha = float(alpha)
+        if alpha < ALPHA['min'] or alpha > ALPHA['max']:
+            logging.append(f'alha {alpha} out of limits, resetted to'
+                           f' {ALPHA["default"]}')
+            return ALPHA['default']
+        else:
+            return alpha
+
+
+    @staticmethod
     def color_labels_set_automatic\
-        (df: pd.DataFrame, cmap_name:str='') -> bool:
+        (df: pd.DataFrame, alpha:float=1., cmap_name:str='') -> bool:
         """
         Sets th column Color if column Label exists in df using colormaps
         If cmap_name is not provided, CMAP_NAMES tuple is used
         Parameters
         ----------
         df : data read from data file
+        alpha : color transparency [0, 1] where 0 is opaque
         cmap_name (str). Optional, color map name
         """
         
@@ -447,15 +460,17 @@ class GWChemPlot():
                       for color in colors]
 
         for lab, clr in zip(labels, hex_colors):
-            df.loc[df['Label'] == lab, 'Color'] = clr            
+            df.loc[df['Label'] == lab, 'Color'] = clr
+            df.loc[df['Label'] == lab, 'Alpha'] = GWChemPlot.check_alpha(alpha) 
 
         return True
 
 
     @staticmethod
     def color_labels_set_manual\
-        (df: pd.DataFrame, color_names:Union[_StrList, _StrTuple]=('black'))\
-            -> bool:
+        (df: pd.DataFrame, 
+         color_names:Union[str, _StrList, _StrTuple]=('black'),
+         alpha:float=1.) -> bool:
         """
         Sets th column Color if column Label exists in df using colormaps
         If cmap_name is not provided, CMAP_NAMES tuple is used
@@ -463,43 +478,96 @@ class GWChemPlot():
         ----------
         df : data read from data file
         color_names. Valid matplotlib color names
+        alpha : color transparency [0, 1] where 0 is opaque
         """
         
         if 'Label' not in df.columns:
             logging.append('Label column must exists to set colors')
             return False
 
+        if isinstance(color_names, str):
+            color_names = [color_names,]
+
         named_colors = mcolors.cnames
         color_keys = list(named_colors.keys())
-        color_values = list(named_colors.values())
-        n = 0
+        m = 0
         for clrn1 in color_names:
             if clrn1 not in color_keys:
                 logging.append(f'{clrn1} is not a valid color name')
-                n += 1
-        if n > 0:
+                m += 1
+        if m > 0:
+            logging.append('Color assignment to labels has not been done')
             return False
-        
+
         labels =  df['Label'].unique()
-        nlabels = len(labels)
+        ncolors = len(color_names)
+        color_names_hex_codes = [named_colors[clrn1].lower() \
+                                 for clrn1 in color_names]
 
         icolor = -1
         itimes = 0
         for lab in labels:
             icolor += 1
-            if icolor == nlabels:
+            if icolor == ncolors:
                 icolor = 0 
                 itimes += 1
-            df.loc[df['Label'] == lab, 'Color'] = color_values[icolor]
+            df.loc[df['Label'] == lab, 'Color'] = color_names_hex_codes[icolor]
+        df.loc[df['Label'] == lab, 'Alpha'] = GWChemPlot.check_alpha(alpha)
         if itimes > 0:
             logging.append(f'Available colors have been recycled {itimes} '
                            'times')
         return True
 
+    
+    @staticmethod
+    def update_alpha(df: pd.DataFrame, alpha: float = 1.,
+                         my_alphas: {str:int}= {}) -> bool:
+        if not isinstance(df, pd.DataFrame):
+            logging.append('df must be of type pandas DataFrame')
+            return False
+
+        COLUMNS_MUST_EXISTS = ('Label', 'Color', 'Alpha')
+        columns_not_exists = [col1 for col1 in COLUMNS_MUST_EXISTS \
+                              if col1 not in df.columns]
+        if columns_not_exists:
+            str_columns_not_exists = ', '.join(columns_not_exists)
+            logging.append(f'Columns {str_columns_not_exists} must exists'
+                           ' to set markers size')
+            return False        
+            
+        if my_alphas:
+            present_colors = df['Color'].unique()
+            not_colors = [k for k in my_alphas \
+                                  if k not in present_colors]
+            if not_colors:
+                str_not_colors = ', '.join(not_colors)
+                logging.append(f'These colors do not exists: {str_not_colors}'
+                               '. No alpha assignement has been done')
+                return False
+            
+            for k, v in my_alphas.items():
+                df.loc[df['Color'] == k, 'Alpha'] = \
+                    GWChemPlot.check_alpha(v)
+        else:
+            df['Alpha'] = GWChemPlot.check_alpha(alpha)
+            
+        return True
+    
     """ ================ Section 4.3. Column Marker  ====================="""
 
     @staticmethod
-    def get_filled_markers(draw_markers:bool = False) -> [str]:
+    def check_marker_size(size:int):
+       if size < GWChemPlot.__MARKER_SIZE['min'] or \
+           size > GWChemPlot.__MARKER_SIZE['max']:
+           logging.append('Size is out of bounds and has been assigned' 
+                          f' to {GWChemPlot.__MARKER_SIZE["default"]}')
+           return GWChemPlot.__MARKER_SIZE['default']
+       else:
+           return size    
+
+
+    @staticmethod
+    def get_filled_markers(display:bool = False) -> [str]:
         """ Get filled markers and optionally draws them """
 
         def format_axes(ax):
@@ -512,7 +580,7 @@ class GWChemPlot():
             i_half = len(a_list) // 2
             return a_list[:i_half], a_list[i_half:]
         
-        if draw_markers:
+        if display:
             text_style = dict(horizontalalignment='right', 
                               verticalalignment='center',
                               fontsize=12, fontfamily='monospace')
@@ -530,62 +598,128 @@ class GWChemPlot():
         
         return [m for m in mmarkers.MarkerStyle.filled_markers]
 
-    
+
     @staticmethod
-    def set_markers(df: pd.DataFrame, single_marker: bool=True, 
-                    my_markers: [str] =[]) -> bool:
+    def marker_labels_set_automatic(df: pd.DataFrame, size:int=30) -> bool:
         """
-        Sets column Marker in df
-        df : data
-        single_marker : all rows have same marker
-        my_markers : list of markers
+        Fill in the Markers column using filled markers except '.' and the
+        columns Size using size. 
+        Parameters
+        ----------
+        df : data read from data file
+        size : Size of the markers
         """
-
-        markers = GWChemPlot.get_filled_markers()        
-        if my_markers:
-            absent = [mk1 for mk1 in my_markers if mk1 not in markers]
-            if len(absent) > 0:
-                a = ', '.join(absent)
-                logging.append(f'Markers {a} are not valid filled markers')
-                present_markers = [mk1 for mk1 in my_markers if mk1 in markers]
-                if len(present_markers) > 0:
-                    markers = present_markers 
-            else:
-                markers = my_markers
-
-        if single_marker:
-            df['Marker'] = markers[0]
-            return True
-
-        if not GWChemPlot.columns_exists(df, ('Label', 'Color')):
-            df['Marker'] = markers[0]
-            return True
         
-        unique_pairs = df[['Label', 'Color']].drop_duplicates()
+        if 'Label' not in df.columns:
+            logging.append('Label column must exists to set markers')
+            return False
+  
+        markers = GWChemPlot.get_filled_markers()[1:]
+        
+        nmarkers = len(markers)
+        
+        labels =  df['Label'].unique()
+
         imarker = -1
-        for index, row in unique_pairs.iterrows():
+        itimes = 0
+        for lab in labels:
             imarker += 1
-            if imarker == len(markers):
-                imarker = 0  
-                logging.append('Number of pairs Label, Color > number of' +\
-                                 '  markers; markers are recycled')
-            mask = (df['Label'] == row['Label']) & (df['Color'] == row['Color'])
-            df.loc[mask, 'Marker'] = markers[imarker]
+            if imarker == nmarkers:
+                imarker = 0 
+                itimes += 1
+            df.loc[df['Label'] == lab, 'Marker'] = markers[imarker]
+        if itimes > 0:
+            logging.append(f'Available markers have been recycled {itimes} '
+                           'times')
+        
+        df['Size'] = GWChemPlot.check_marker_size(size)
+
+        return True
+
+
+    @staticmethod
+    def marker_labels_set_manual\
+        (df: pd.DataFrame, mymarkers:Union[str, _StrList, _StrTuple]='o',
+         size:int=30) -> bool:
+        """
+        Sets the column Marker using mymarkers and the columns Size using size.
+        Parameters
+        ----------
+        df : data read from data file
+        mymarkers  An str or a list or tupple of filled markers symbols.
+            ('.' is an allowed symbol)
+        size : Size of the markers
+        """
+        
+        if 'Label' not in df.columns:
+            logging.append('Label column must exists to set colors')
+            return False
+ 
+        markers = GWChemPlot.get_filled_markers()
+
+        m = 0
+        for mrk1 in mymarkers:
+            if mrk1 not in markers:
+                logging.append(f'{mrk1} is not a valid filled marker')
+                m += 1
+        if m > 0:
+            logging.append('Marker assignment to labels has not been done')
+            return False        
+        
+        labels =  df['Label'].unique()
+        nmymarkers = len(mymarkers)
+
+        imarker = -1
+        itimes = 0
+        for lab in labels:
+            imarker += 1
+            if imarker == nmymarkers:
+                imarker = 0 
+                itimes += 1
+            df.loc[df['Label'] == lab, 'Marker'] = mymarkers[imarker]
+        if itimes > 0:
+            logging.append(f'Available markers have been recycled {itimes} '
+                           'times')
+
+        df['Size'] = GWChemPlot.check_marker_size(size)
+
+        return True
 
     
     @staticmethod
-    def set_markers_size(df: pd.DataFrame, unique_marker_size: bool=True, 
-                         marker_size: int = 20, 
-                         my_markers_sizes: {str:int}= {}) -> None:
-        
-        if marker_size<=0 or marker_size>30:
-            logging.append('Markers size has been changed')
-            marker_size = GWChemPlot._default_marker_size
-        
-        if unique_marker_size:
-            df['Size'] = marker_size
+    def update_markers_size(df: pd.DataFrame, size: int = 20,
+                         my_markers_sizes: {str:int}= {}) -> bool:
+        if not isinstance(df, pd.DataFrame):
+            logging.append('df must be of type pandas DataFrame')
+            return False
 
-    """ Section 5. Class methods that don't do grahs """
+        COLUMNS_MUST_EXISTS = ('Label', 'Marker', 'Size')
+        columns_not_exists = [col1 for col1 in COLUMNS_MUST_EXISTS \
+                              if col1 not in df.columns]
+        if columns_not_exists:
+            str_columns_not_exists = ', '.join(columns_not_exists)
+            logging.append(f'Columns {str_columns_not_exists} must exists'
+                           ' to set markers size')
+            return False        
+            
+        if my_markers_sizes:
+            present_markers = df['Marker'].unique()
+            not_present_markers = [k for k in my_markers_sizes \
+                                   if k not in present_markers]
+            if not_present_markers:
+                str_not_present_markers = ', '.join(not_present_markers)
+                logging.append(f'These markers: {str_not_present_markers}'
+                               ' not exists, no size assignement has been done')
+                return False
+            
+            for k, v in my_markers_sizes.items():
+                df.loc[df['Marker'] == k, 'Size'] = \
+                    GWChemPlot.check_marker_size(v)
+        else:
+            df['Size'] = GWChemPlot.check_marker_size(size)
+        return True
+
+    """ ======= Section 5. Class methods that don't do grahs =============="""
 
     def cbe(self) -> pd.DataFrame:
         """
