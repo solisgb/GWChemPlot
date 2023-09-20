@@ -13,4 +13,4 @@ Two tables can be saved to files:
 
 2. Classification of the analyses according to the most abundant ions.
 
-Three Jupyter notebooks (in Spanish) are included to teach users with little experience in Python or Jupyter notebooks how to handle the app.
+Three Jupyter notebooks are included to teach users with little experience in Python or Jupyter notebooks how to handle the module.
