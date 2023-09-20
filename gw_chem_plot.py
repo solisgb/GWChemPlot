@@ -35,19 +35,16 @@ class GWChemPlot():
         image files.
     """
     # anions ({key: [weight, charge]})
-    _anions = {'Cl': (35.453, -1), 'SO4': (96.0626, -2), 'CO3': (60.0089, -2),
+    __ANIONS = {'Cl': (35.453, -1), 'SO4': (96.0626, -2), 'CO3': (60.0089, -2),
                'HCO3': (61.0168, -1), 'NO3': (62.0049, -1)}
-       
     # cations
-    _cations = {'Ca': (40.078, 2), 'Mg': (24.305, 2), 'K': (39.0983, 1),
+    __CATIONS = {'Ca': (40.078, 2), 'Mg': (24.305, 2), 'K': (39.0983, 1),
                           'Na': (22.989769, 1)}
-    _required_ion_names = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
-    _optional_ion_names = ('CO3', 'NO3')
+    __REQUIRED_ION_NAMES = ('HCO3', 'Cl', 'SO4', 'Na', 'K', 'Ca', 'Mg')
+    __OPTIONAL_ION_NAMES = ('CO3', 'NO3')
     
-    _required_analysis_name = ('Sample',)
-    _required_graph_names =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
-    _defaults_graph_params = {'size': 30, 'alpha': 0.6} 
-    _default_color = 'blue'
+    __REQUIRED_ANALYSIS_NAME = ('Sample',)
+    __REQUIRED_GRAPH_NAMES =  ('Label', 'Color', 'Marker', 'Size', 'Alpha')
     __MARKER_SIZE = {'min': 5, 'max': 40, 'default': 30}       
     
     _StrList = List[str]
@@ -70,18 +67,21 @@ class GWChemPlot():
         _dpi. Checked dpi 
         _piper. Matlib parameter in plot_Piper method 
         """
-        if unit not in ['mg/L', 'meq/L']:
+        if len(df) == 0:
+            raise ValueError('Dataframe has no data')
+        
+        if unit.lower() not in ['mg/l', 'meq/l']:
            raise ValueError('Units must be mg/L or meq/L')
 
-        if not GWChemPlot.check_dataframe_column_types(df):
-            raise ValueError('You must modify the input DataFrame')
+        if not GWChemPlot.check_data(df):
+            raise ValueError('You must modify your data')
             
-        df = df.dropna(subset = GWChemPlot._required_ions_names)
-        if len(df):
+        # df = df.dropna(subset = GWChemPlot.required_ion_names())
+        if len(df) == 0:
             raise ValueError('There are not valid data, review the data file')
         
         self._data: pd.DataFrame = df.copy()
-        self._unit: str = unit
+        self._unit: str = unit.lower()
         self._dpi: int = dpi
         self._piper: dict = {'font.size': 9, 'axes.labelsize': 9,
                              'axes.labelweight': 'bold', 'axes.titlesize' : 9,
@@ -125,35 +125,35 @@ class GWChemPlot():
 
     @staticmethod
     def anions_names_get() -> [str]:
-        return GWChemPlot._anions.keys()
+        return GWChemPlot.__ANIONS.keys()
     
     @staticmethod
     def cations_names_get() -> [str]:
-        return GWChemPlot._cations.keys()
+        return GWChemPlot.__CATIONS.keys()
 
     @staticmethod
     def ions_names_get() -> [str]:
-        return GWChemPlot._anions.keys() + GWChemPlot._cations.keys()
+        return GWChemPlot.__ANIONS.keys() + GWChemPlot.__CATIONS.keys()
     
 
     @staticmethod
     def analysis_name():
-        return GWChemPlot._required_analysis_name
+        return GWChemPlot.__REQUIRED_ANALYSIS_NAME
 
     
     @staticmethod
     def required_ion_names():
-        return GWChemPlot._required_ion_names
+        return GWChemPlot.__REQUIRED_ION_NAMES
 
 
     @staticmethod
     def optional_ion_names():
-        return GWChemPlot._optional_ion_names
+        return GWChemPlot.__OPTIONAL_ION_NAMES
 
 
     @staticmethod
     def required_graph_names():
-        return GWChemPlot._required_graph_names
+        return GWChemPlot.__REQUIRED_GRAPH_NAMES
 
     
     """
@@ -161,88 +161,131 @@ class GWChemPlot():
     """
     
     @staticmethod
-    def check_dataframe_column_types(df: pd.DataFrame) -> bool:
+    def check_data(df: pd.DataFrame, overwrite_sample:bool=True) -> bool:
         """
         Checks:
             1. df has the required column names
             2. The required columns have the required types
             3. If optional columns are presente they have the required types
+        Parameters
+        ----------
+        df : data read from data file
+        overwrite_sample. If True and column 'Sample' exists and it has not
+            unique values, column is filled with new unique values
+        
         Returns
         ------
         True if df pass all the tests correctly
         """
-        def match_types(df: pd.DataFrame, col_names: [str],
-                        dtypes: [str]) -> bool:
-            """
-            For each element in col_names, checks that is of type dtypes; if
-            not, try to change its type to dtypes
-
-            Parameters
-            ----------
-            df. Data
-            col_names. Column names 
-            dtypes : str or [str]; if is of type str, a [str] is formed
-                with all elements equal to dtypes.
-            Returns
-            -------
-            True if OK
-            """
-            
-            if isinstance(dtypes, str):
-                dtypes = [dtypes for i in range(0, len(col_names))]
-                
-            columns_in_df = df.columns.tolist()
-            result = True
-            for col1, dtype in zip(col_names, dtypes):
-                if col1 in columns_in_df:
-                    if df[col1].dtype != dtype:
-                        try:
-                            df[col1].astype(dtype)
-                        except ValueError as e:
-                            logging.append(f'Column {col1}: {e.args[0]}')
-                            if result:
-                                result = False
-
-            return result
         
         result = True
+        
+        # Column Sample
         if 'Sample' not in df.columns:
-            GWChemPlot.create_column_sample(df)
+            GWChemPlot.set_column_sample(df)
+            logging.append('Column Sample has been created')
         else:
             if df['Sample'].nunique() != len(df):
-                logging.append('There are repeated values in the column',
-                                 ' Sample')
-                result = False
-                
-        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_graph_names):
-            if result: result = False
+                logging.append('There are repeated values in the column'
+                               ' Sample')                
+                if overwrite_sample:
+                    GWChemPlot.set_column_sample()
+                    logging.append('Column Sample has been overwriten')                                
+                else:
+                    result = False
 
-        if not match_types(df, ['Sample', 'Size', 'Alpha'],
-                           ['string', 'UInt32', 'Float32']):
-            if result: result = False
-
-        if GWChemPlot.columns_not_in_df(df, GWChemPlot._required_ion_names):
-            if result: result = False
-
-        if not match_types(df, GWChemPlot._required_ion_names, 'Float64'):
+        # Required ions
+        req_cols = [c1 for c1 in GWChemPlot.__REQUIRED_ION_NAMES \
+                    if c1 in df.columns]
+        if len(req_cols) != len(GWChemPlot.__REQUIRED_ION_NAMES):
+            missing_cols = [c1 for c1 in GWChemPlot.__REQUIRED_ION_NAMES \
+                            if c1 not in req_cols]
+            str_missing_cols = ', '.join(missing_cols)
+            logging.append('The following mandatory columns do not exist: '
+                           f' {str_missing_cols}')
             if result: result = False
         
-        opt_col = [c1 for c1 in GWChemPlot._optional_ion_names]
-        if not match_types(df, opt_col, 'Float64'):
-            if result: result = False
+        # Optional ions
+        opt_cols = [c1 for c1 in GWChemPlot.__OPTIONAL_ION_NAMES \
+                    if c1 in df.columns]
+        cols = req_cols + opt_cols
+
+        # Ion columns must be of type float64 or int64
+        match_cols = [col1 for col1 in cols \
+                      if df[col1].dtype in ('float64', 'int64')]
+        if len(match_cols) != len(cols):
+            no_match_cols = [c1 for c1 in cols if c1 not in match_cols]
+            str_no_match_cols = ', '.join(match_cols)
+            logging.append('The following columns have non numeric values '
+                           f'{str_no_match_cols}')
+        else:
+            no_match_cols = []
+        
+        # Columns and rows with str values
+        if no_match_cols:
+            mask = df[no_match_cols].applymap(lambda x: isinstance(x, str))
+            columns_with_str = df[no_match_cols].columns[mask.any()].tolist()
+            if columns_with_str:
+                str_columns_with_str = ', '.join(columns_with_str)
+                logging.append('The following numeric columns have '
+                               f'string values: {str_columns_with_str}')                
+                rows_with_str = df[mask.any(axis=1)]
+                logging.append(f'{len(rows_with_str)} rows have str values')
+                print(rows_with_str)
+        
+        # Columns and rows with NaN values
+        if no_match_cols:
+            mask = df[no_match_cols].isna()
+            columns_with_nan = df[no_match_cols].columns[mask.any()].tolist()
+            if columns_with_nan:
+                str_columns_with_nan = ', '.join(columns_with_nan)
+                logging.append('The following numeric columns have '
+                               f'NaN values: {str_columns_with_nan}')
+                rows_with_nan = df[mask.any(axis=1)]  
+                logging.append(f'{len(rows_with_nan)} rows have NaN values')
+                print(rows_with_nan)
+
+        # Required columns for Piper diagram
+        piper_cols = [col1 for col1 in df.columns \
+                      if col1 in GWChemPlot.__REQUIRED_GRAPH_NAMES] 
+        if len(piper_cols) != len(GWChemPlot.__REQUIRED_GRAPH_NAMES):
+            missing_cols = [col1 for col1 in GWChemPlot.__REQUIRED_GRAPH_NAMES \
+                            if col1 not in piper_cols]
+        else:
+            missing_cols = []
+
+        if missing_cols:
+            str_missing_cols = ', '.join(missing_cols)
+            logging.append('Warning. The following columns are required to '
+                           f'create a Piper diagram: {str_missing_cols} '
+                           'and are not present')
+
+        grahs_cols = [col1 for col1 in ('Size', 'Alpha') if col1 in piper_cols]
+        if grahs_cols:
+            match_cols = [col1 for col1 in grahs_cols \
+                          if df[col1].dtype in ('float64', 'int64')]
+            if len(match_cols) != len(grahs_cols):
+                no_match_cols = [c1 for c1 in grahs_cols \
+                                 if c1 not in match_cols]
+                str_no_match_cols = ', '.join(match_cols)
+                logging.append('The following columns have non numeric'
+                               f' values {str_no_match_cols}')
+                if result: result = False
+            else:
+                no_match_cols = []
         
         return result    
-
+        
 
     @staticmethod
     def anions_in_df(df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._anions.keys()]
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot.__ANIONS.keys()]
         return cols
 
 
     @staticmethod
     def cations_in_df(df: pd.DataFrame) -> [str]:
-        cols = [c1 for c1 in df.columns if c1 in GWChemPlot._cations.keys()]
+        cols = [c1 for c1 in df.columns if c1 in GWChemPlot.__CATIONS.keys()]
         return cols
 
 
@@ -255,7 +298,7 @@ class GWChemPlot():
 
     @staticmethod
     def charge_get(ion_names: [str]=[]) -> pd.DataFrame:
-        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        ions = {**GWChemPlot.__ANIONS, **GWChemPlot.__CATIONS}  # Merge dictionaries
         ich = {key: value[0] for key, value in ions.items()} 
         df = pd.DataFrame([ich], columns=ich.keys())        
         if ion_names:
@@ -302,7 +345,7 @@ class GWChemPlot():
     
     @staticmethod
     def weight_get(ion_names: [str]=[]) -> pd.DataFrame:
-        ions = {**GWChemPlot._anions, **GWChemPlot._cations}  # Merge dictionaries
+        ions = {**GWChemPlot.__ANIONS, **GWChemPlot.__CATIONS}  # Merge dictionaries
         iw = {key: value[0] for key, value in ions.items()} 
         df = pd.DataFrame([iw], columns=iw.keys())        
         if ion_names:
@@ -327,10 +370,31 @@ class GWChemPlot():
                 df.insert(0, 'Sample', sequence)
             else:
                 df['Sample'] = sequence
-            logging.append('Column Sample has been automatically created')
+            logging.append('Column Sample has been created')
             return True
         else:
             return False
+
+
+    @staticmethod
+    def set_column_sample\
+        (df: pd.DataFrame, first_id: int = 1, suffix: str = 'S',
+         separator: str= '-', insert_at_beginning:bool=True) -> bool:
+        sequence = [suffix + separator + str(i) for i in \
+                    range(first_id, len(df) + first_id)]
+        if insert_at_beginning:
+            if 'Sample' in df.columns:
+                if df.columns[0] == 'Sample':
+                    df['Sample'] = sequence
+                else:
+                    df = df.drop('Sample', axis=1)
+                    df.insert(0, 'Sample', sequence)
+            else:
+                df.insert(0, 'Sample', sequence)
+        else:
+            df['Sample'] = sequence
+        return True
+
 
     """ =================== Section 4.1. Labels ==========================="""
 

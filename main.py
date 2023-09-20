@@ -27,17 +27,19 @@ if __name__ == "__main__":
     try:
 
         fdata = './data/data_template.xlsx'        
-        data = pd.read_excel(fdata, sheet_name=2)
-        
-        cols_for_label = ['Toma']
-        gwplot.set_labels(data, autonumbering=False, 
-                              cols_for_label=cols_for_label)
-
-        gwplot.color_labels_set_automatic(data)
-        new_alphas = {'#ff0018ff': 0.9}
-        gwplot.update_alpha(data, my_alphas = new_alphas)
+        data = pd.read_excel(fdata, sheet_name='data4_chs_bg')
         print(data)
         
+        gwp = gwplot(data)
+        
+        # cols_for_label = ['Toma']
+        # gwplot.set_labels(data, autonumbering=False, 
+        #                       cols_for_label=cols_for_label)
+
+        # gwplot.color_labels_set_automatic(data)
+        # new_alphas = {'#ff0018ff': 0.9}
+        # gwplot.update_alpha(data, my_alphas = new_alphas)
+       
         
     except Exception:
         msg = traceback.format_exc()
