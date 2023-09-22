@@ -51,20 +51,25 @@ class GWChemPlot():
     _StrTuple = Tuple[str]
 
     
-    def __init__(self, df: pd.DataFrame, unit: str='mg/L', dpi: int=150):
+    def __init__(self, df: pd.DataFrame, unit: str='mg/L', 
+                 drop_not_num_rows:bool=True, dpi: int=150):
         """
         Instanciate the class
         Parameters
         ----------
         df. Hydrochemical data to draw diagrams.
-        unit. The unit used in df (mg/L or meq/L). 
+        unit. The unit used in df (mg/L or meq/L).
+        drop_not_num_rows. If True will be deleted rows in df that don't have
+            the required data
         dpi. Dot per inch in graph output files
         
         Atributes
         ---------
         _data. Checked df
         _unit. Checked unit
-        _dpi. Checked dpi 
+        _dpi. Checked dpi
+        _draw_piper. If False, data don't have the required columns to draw
+            Piper diagram or specific data column don't have the required type
         _piper. Matlib parameter in plot_Piper method 
         """
         if len(df) == 0:
@@ -73,16 +78,28 @@ class GWChemPlot():
         if unit.lower() not in ['mg/l', 'meq/l']:
            raise ValueError('Units must be mg/L or meq/L')
 
-        if not GWChemPlot.check_data(df):
-            raise ValueError('You must modify your data')
-            
-        # df = df.dropna(subset = GWChemPlot.required_ion_names())
-        if len(df) == 0:
-            raise ValueError('There are not valid data, review the data file')
+        result = GWChemPlot.check_data(df)
+        if not result['continue']:
+            raise ValueError('You must review your data file')
+        if drop_not_num_rows:
+            if result['rows_to_drop']:
+                df = df.drop(result['rows_to_drop'])
+                logging.append(f'\n{len(result["rows_to_drop"])} rows '
+                               'has been deleted')
+                msg = f'Your data now contains {len(df)} analyses'
+                
+                logging.append(msg)
+                if len(df) == 0:
+                    raise ValueError('No analysis to represent')
+            else:
+                msg = f'\n{len(result["rows_to_drop"])} lines of the data' +\
+                ' file must be revised.'
+                raise ValueError(msg)
         
         self._data: pd.DataFrame = df.copy()
         self._unit: str = unit.lower()
         self._dpi: int = dpi
+        self._draw_piper:bool = result['draw_piper']
         self._piper: dict = {'font.size': 9, 'axes.labelsize': 9,
                              'axes.labelweight': 'bold', 'axes.titlesize' : 9,
                              'xtick.labelsize': 9, 'ytick.labelsize': 9,
@@ -161,7 +178,7 @@ class GWChemPlot():
     """
     
     @staticmethod
-    def check_data(df: pd.DataFrame, overwrite_sample:bool=True) -> bool:
+    def check_data(df: pd.DataFrame, overwrite_sample:bool=True) -> {}:
         """
         Checks:
             1. df has the required column names
@@ -175,37 +192,28 @@ class GWChemPlot():
         
         Returns
         ------
-        True if df pass all the tests correctly
+        A dictionary with the following keys:
+            continue: If False df doesn't have required columns to do the grahs
+            rows_to_drop: Rows in df with ions with non numeric or NaN values
+            draw_piper: If False, df doesn't have required columns to do 
+                draw Piper diagram
         """
         
-        result = True
-        
-        # Column Sample
-        if 'Sample' not in df.columns:
-            GWChemPlot.set_column_sample(df)
-            logging.append('Column Sample has been created')
-        else:
-            if df['Sample'].nunique() != len(df):
-                logging.append('There are repeated values in the column'
-                               ' Sample')                
-                if overwrite_sample:
-                    GWChemPlot.set_column_sample()
-                    logging.append('Column Sample has been overwriten')                                
-                else:
-                    result = False
+        result = {'continue': True, 'rows_to_drop': [], 'draw_piper': True}
 
-        # Required ions
+        # Existence of required ions
         req_cols = [c1 for c1 in GWChemPlot.__REQUIRED_ION_NAMES \
                     if c1 in df.columns]
         if len(req_cols) != len(GWChemPlot.__REQUIRED_ION_NAMES):
             missing_cols = [c1 for c1 in GWChemPlot.__REQUIRED_ION_NAMES \
                             if c1 not in req_cols]
             str_missing_cols = ', '.join(missing_cols)
-            logging.append('The following mandatory columns do not exist: '
+            logging.append('\nThe following mandatory columns do not exist: '
                            f' {str_missing_cols}')
-            if result: result = False
+            if result['continue']: 
+                result['continue'] = False
         
-        # Optional ions
+        # Existence of optional ions
         opt_cols = [c1 for c1 in GWChemPlot.__OPTIONAL_ION_NAMES \
                     if c1 in df.columns]
         cols = req_cols + opt_cols
@@ -215,37 +223,42 @@ class GWChemPlot():
                       if df[col1].dtype in ('float64', 'int64')]
         if len(match_cols) != len(cols):
             no_match_cols = [c1 for c1 in cols if c1 not in match_cols]
-            str_no_match_cols = ', '.join(match_cols)
-            logging.append('The following columns have non numeric values '
-                           f'{str_no_match_cols}')
+            str_no_match_cols = ', '.join(no_match_cols)
+            logging.append('\nThe following columns should have a '
+                           f'numeric type: {str_no_match_cols}')
         else:
             no_match_cols = []
         
-        # Columns and rows with str values
+        # Present ions and rows with non float or int values
+        rows_to_drop = []
         if no_match_cols:
-            mask = df[no_match_cols].applymap(lambda x: isinstance(x, str))
-            columns_with_str = df[no_match_cols].columns[mask.any()].tolist()
-            if columns_with_str:
-                str_columns_with_str = ', '.join(columns_with_str)
-                logging.append('The following numeric columns have '
-                               f'string values: {str_columns_with_str}')                
-                rows_with_str = df[mask.any(axis=1)]
-                logging.append(f'{len(rows_with_str)} rows have str values')
-                print(rows_with_str)
+            mask = df[no_match_cols]\
+                .applymap(lambda x: not isinstance(x, (int, float)))
+            columns_not_float = df[no_match_cols].columns[mask.any()].tolist()
+            if columns_not_float:
+                str_columns_not_float = ', '.join(columns_not_float)
+                logging.append('\nThe following columns have '
+                               f'non numeric values: {str_columns_not_float}')                
+                rows_with_not_float = df[mask.any(axis=1)]
+                logging.append(f'{len(rows_with_not_float)} rows have '
+                               'non numeric values:')
+                rows_to_drop = rows_with_not_float.index.tolist() 
+                print(rows_with_not_float[columns_not_float])
         
-        # Columns and rows with NaN values
-        if no_match_cols:
-            mask = df[no_match_cols].isna()
-            columns_with_nan = df[no_match_cols].columns[mask.any()].tolist()
-            if columns_with_nan:
-                str_columns_with_nan = ', '.join(columns_with_nan)
-                logging.append('The following numeric columns have '
-                               f'NaN values: {str_columns_with_nan}')
-                rows_with_nan = df[mask.any(axis=1)]  
-                logging.append(f'{len(rows_with_nan)} rows have NaN values')
-                print(rows_with_nan)
+        # Present ions and rows with NaN values
+        mask = df[cols].isna()
+        columns_with_nan = df[cols].columns[mask.any()].tolist()
+        if columns_with_nan:
+            str_columns_with_nan = ', '.join(columns_with_nan)
+            logging.append('\nThe following columns have '
+                           f'NaN values: {str_columns_with_nan}')
+            rows_with_nan = df[mask.any(axis=1)]  
+            logging.append(f'{len(rows_with_nan)} rows have NaN values:')
+            rows_to_drop.extend(rows_with_nan.index.tolist())
+            print(rows_with_nan[columns_with_nan])
 
-        # Required columns for Piper diagram
+
+        # Required columns for Piper diagram (graph attributes columns)
         piper_cols = [col1 for col1 in df.columns \
                       if col1 in GWChemPlot.__REQUIRED_GRAPH_NAMES] 
         if len(piper_cols) != len(GWChemPlot.__REQUIRED_GRAPH_NAMES):
@@ -255,8 +268,9 @@ class GWChemPlot():
             missing_cols = []
 
         if missing_cols:
+            result['draw_piper'] = False
             str_missing_cols = ', '.join(missing_cols)
-            logging.append('Warning. The following columns are required to '
+            logging.append('\nWarning. The following columns are required to '
                            f'create a Piper diagram: {str_missing_cols} '
                            'and are not present')
 
@@ -268,11 +282,31 @@ class GWChemPlot():
                 no_match_cols = [c1 for c1 in grahs_cols \
                                  if c1 not in match_cols]
                 str_no_match_cols = ', '.join(match_cols)
-                logging.append('The following columns have non numeric'
-                               f' values {str_no_match_cols}')
-                if result: result = False
+                logging.append('\nThe following columns should have numeric'
+                               f' values: {str_no_match_cols}')
+                if result['draw_piper']: 
+                    result['draw_piper'] = False
             else:
                 no_match_cols = []
+        
+        r2drop = list(set(rows_to_drop))
+        r2drop.sort() 
+        result['rows_to_drop'] = r2drop.copy()
+
+        # Existence of column Sample
+        if result['continue']:
+            if 'Sample' not in df.columns:
+                GWChemPlot.set_column_sample(df)
+                logging.append('\nColumn Sample has been created')
+            else:
+                if df['Sample'].nunique() != len(df):
+                    logging.append('\nThere are repeated values in the column'
+                                   ' Sample')                
+                    if overwrite_sample:
+                        GWChemPlot.set_column_sample()
+                        logging.append('Column Sample has been overwriten')                                
+                    else:
+                        result['continue'] = False
         
         return result    
         

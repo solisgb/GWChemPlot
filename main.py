@@ -28,7 +28,6 @@ if __name__ == "__main__":
 
         fdata = './data/data_template.xlsx'        
         data = pd.read_excel(fdata, sheet_name='data4_chs_bg')
-        print(data)
         
         gwp = gwplot(data)
         
