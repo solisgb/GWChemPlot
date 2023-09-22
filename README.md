@@ -1,7 +1,6 @@
 # Module gw_chem_plot
-gw_chem_plot stands for Groundwater chemical plots
 
-Python module to make some groundwater hydrochemical graphs. At the moment the graphs are: Schoeller, Piper and Stiff.
+Python module to make some groundwater hydrochemical graphs. At the moment the graphs are: Schoeller, Piper and Stiff. gw_chem_plot stands for Groundwater chemical plots.
 
 The functions that build the graphs have been adapted with slight modifications from the WQChartPy package https://github.com/jyangfsu/WQChartPy.
 
