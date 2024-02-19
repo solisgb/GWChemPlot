@@ -3,5 +3,5 @@ GWChemPlot is a Python module to make groundwater hydrochemical graphs (Schoelle
 
 The functions that build the graphs have been adapted with slight modifications from the WQChartPy package https://github.com/jyangfsu/WQChartPy.
 
-Other functions are added to calculate the charge balance error of the hydrochemical analyses and a descriptive classification of dominant ions.
+Other functions are added to calculate the charge balance error of the hydrochemical analyses and to classify the ion's dominance.
 
